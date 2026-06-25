@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res, UseGuards, Logger } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from '@services/auth.service';
 import { SessionService } from '@services/session.service';
 import { SessionGuard } from '@guards/session.guard';
+import { config } from '@configs/configuration';
 
 @Controller()
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private authService: AuthService,
     private sessionService: SessionService,
@@ -33,10 +36,10 @@ export class AuthController {
         path: '/',
       });
 
-      res.redirect('http://localhost:8081/');
+      res.redirect(config.frontendUrl + '/');
     } catch (e) {
-      console.error('Callback error:', e.message, e.stack);
-      res.redirect('http://localhost:8081/login?error=auth_failed');
+      this.logger.error(`Callback error: ${e.message}`, e.stack);
+      res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
     }
   }
 
@@ -52,19 +55,22 @@ export class AuthController {
 
   // Новый GET /logout вместо POST
   @Get('logout')
-  @UseGuards(SessionGuard)
-  async logout(@Req() req: any, @Res() res: Response) {
+  async logout(@Req() req: Request, @Res() res: Response) {
     const sessionId = req.cookies?.SESSION_ID;
-    const session = req.userSession;
+    let idToken: string | undefined;
 
     if (sessionId) {
-      await this.sessionService.deleteSession(sessionId);
+      const session = await this.sessionService.getSession(sessionId);
+      if (session) {
+        idToken = session.idToken;
+        await this.sessionService.deleteSession(sessionId);
+      }
     }
 
     res.clearCookie('SESSION_ID', { path: '/' });
 
-    // Завершаем сессию Keycloak и возвращаемся на главную
-    const logoutUrl = `http://localhost:8080/realms/TestRealm/protocol/openid-connect/logout?id_token_hint=${session.idToken}&post_logout_redirect_uri=http://localhost:8081/`;
+    // Завершаем сессию Keycloak. Если idToken нет, Keycloak все равно предложит выбрать сессию для выхода или выйдет из текущей.
+    const logoutUrl = this.authService.getLogoutUrl(idToken || '');
     res.redirect(logoutUrl);
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { redisClient } from '@configs/redis.config';
+import { config } from '@configs/configuration';
 import * as crypto from 'crypto';
 
 export interface UserSession {
@@ -14,8 +15,8 @@ export interface UserSession {
 
 @Injectable()
 export class SessionService {
-  private readonly SESSION_PREFIX = 'sess:';
-  private readonly SESSION_TTL = 60 * 60 * 24; // 24 hours
+  private readonly SESSION_PREFIX = config.session.prefix;
+  private readonly SESSION_TTL = config.session.ttl; // in seconds
 
   async createSession(tokens: any, userInfo: any): Promise<UserSession> {
     const sessionId = this.generateRandomId();

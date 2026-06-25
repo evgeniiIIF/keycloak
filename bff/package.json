@@ -1,7 +1,7 @@
 {
-  "name": "nestjs-keycloak-backend",
+  "name": "nestjs-keycloak-bff",
   "version": "0.0.1",
-  "description": "NestJS Backend with Keycloak Auth",
+  "description": "NestJS BFF with Keycloak Auth",
   "private": true,
   "scripts": {
     "build": "nest build",
