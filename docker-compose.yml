@@ -27,8 +27,6 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME: localhost
       KC_HTTP_PORT: 8080
-      KC_SPI_EVENTS_LISTENER_EXT_EVENT_HTTP_ENABLED: "true"
-      KC_SPI_EVENTS_LISTENER_EXT_EVENT_HTTP_ADMIN_EVENTS_URL: "http://bff:3000/api/auth/admin-events"
     ports:
       - "8080:8080"
     depends_on:

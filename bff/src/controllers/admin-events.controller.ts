@@ -8,13 +8,20 @@ export class AdminEventsController {
 
   @Post('admin-events')
   async handleAdminEvent(@Body() event: any) {
-    Logger.info('AdminEvents', `Admin event: ${event.resourceType} ${event.operationType}`);
+    Logger.info('AdminEvents', `Received admin event`, {
+      resourceType: event.resourceType,
+      operationType: event.operationType,
+      realm: event.realmId,
+      details: JSON.stringify(event.details || {}),
+    });
 
     if (event.resourceType === 'USER_SESSION' && event.operationType === 'DELETE') {
       const userId = event.details?.user_id;
       if (userId) {
         Logger.info('AdminEvents', `Terminating sessions for user: ${userId}`);
         await this.sessionService.deleteSessionsByUser(userId);
+      } else {
+        Logger.warn('AdminEvents', `USER_SESSION DELETE but no user_id in details`);
       }
     }
 

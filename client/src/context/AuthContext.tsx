@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     // Redirect to BFF /logout endpoint
-    window.location.href = 'http://localhost:3000/logout';
+    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/logout`;
   };
 
   return (

@@ -5,16 +5,12 @@ import { ProtectedServiceController } from '@controllers/protected_service.contr
 import { AdminEventsController } from '@controllers/admin-events.controller';
 import { AuthService } from '@services/auth.service';
 import { SessionService } from '@services/session.service';
-import { ProxyService } from '@services/proxy.service';
-import { HttpService } from './http/http.service';
 
 @Module({
   controllers: [AuthController, ProtectedController, ProtectedServiceController, AdminEventsController],
   providers: [
-    HttpService,
     AuthService,
     SessionService,
-    ProxyService,
   ],
 })
 export class AppModule {}

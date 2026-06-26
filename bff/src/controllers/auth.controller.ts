@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res, UseGuards, Header } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from '@services/auth.service';
 import { SessionService } from '@services/session.service';
 import { SessionGuard } from '@guards/session.guard';
 import { config } from '@configs/configuration';
+import { oidcConfig } from '@configs/oidc.config';
 import { Logger } from '../utils/logger';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 @Controller()
 export class AuthController {
@@ -15,8 +17,8 @@ export class AuthController {
 
   @Get('login')
   async login(@Res() res: Response) {
-    Logger.info('AuthController', `Login request initiated`);
-    const { url } = await this.authService.getAuthorizationUrl();
+    const { url, state } = await this.authService.getAuthorizationUrl();
+    Logger.info('AuthController', `Login request initiated`, { state: state.slice(0, 8) });
     res.redirect(url);
   }
 
@@ -27,7 +29,10 @@ export class AuthController {
     @Res() res: Response,
   ) {
     try {
-      Logger.info('AuthController', `Callback received code=${code.slice(0, 8)}... state=${state.slice(0, 8)}`);
+      Logger.info('AuthController', `Callback received`, {
+        code: code.slice(0, 8),
+        state: state.slice(0, 8),
+      });
       const session = await this.authService.handleCallback(code, state);
 
       res.cookie('SESSION_ID', session.sessionId, {
@@ -37,10 +42,15 @@ export class AuthController {
         path: '/',
       });
 
-      Logger.info('AuthController', `Session cookie set, redirecting to frontend`);
+      Logger.info('AuthController', `Session cookie set, redirecting to frontend`, {
+        session: session.sessionId.slice(0, 8),
+        user: session.userInfo.preferred_username || session.userInfo.email,
+      });
       res.redirect(config.frontendUrl + '/');
     } catch (e) {
-      Logger.error('AuthController', `Callback error: ${e.message}`);
+      Logger.error('AuthController', `Callback error: ${e.message}`, {
+        state: state?.slice(0, 8) || '?',
+      });
       res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
     }
   }
@@ -71,8 +81,43 @@ export class AuthController {
 
     res.clearCookie('SESSION_ID', { path: '/' });
 
-    // Завершаем сессию Keycloak. Если idToken нет, Keycloak все равно предложит выбрать сессию для выхода или выйдет из текущей.
-    const logoutUrl = this.authService.getLogoutUrl(idToken || '');
-    res.redirect(logoutUrl);
+    if (idToken) {
+      const logoutUrl = this.authService.getLogoutUrl(idToken);
+      res.redirect(logoutUrl);
+    } else {
+      res.redirect('/login');
+    }
+  }
+
+  @Post('api/auth/backchannel-logout')
+  @Header('Cache-Control', 'no-store')
+  async backchannelLogout(@Req() req: Request, @Res() res: Response) {
+    const logoutToken = req.body?.logout_token;
+
+    if (!logoutToken) {
+      Logger.warn('AuthController', 'Backchannel logout: no logout_token in body');
+      res.status(400).send('Missing logout_token');
+      return;
+    }
+
+    try {
+      const JWKS = createRemoteJWKSet(new URL(oidcConfig.jwksUri));
+      const { payload } = await jwtVerify(logoutToken, JWKS, {
+        issuer: oidcConfig.issuer,
+      });
+
+      const sub = payload.sub as string;
+
+      Logger.info('AuthController', 'Backchannel logout received', { sub });
+
+      if (sub) {
+        await this.sessionService.deleteSessionsByUser(sub);
+      }
+
+      res.status(200).send('OK');
+    } catch (error) {
+      Logger.error('AuthController', `Backchannel logout validation failed: ${error.message}`);
+      res.status(401).send('Invalid logout token');
+    }
   }
 }

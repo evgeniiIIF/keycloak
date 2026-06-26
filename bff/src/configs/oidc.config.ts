@@ -10,4 +10,5 @@ export const oidcConfig = {
   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || 'secret',
   redirectUri: process.env.KEYCLOAK_REDIRECT_URI || 'http://localhost:3000/callback',
   scope: 'openid profile email',
+  jwksUri: process.env.KEYCLOAK_JWKS_URI || 'http://localhost:8080/realms/TestRealm/protocol/openid-connect/certs',
 };

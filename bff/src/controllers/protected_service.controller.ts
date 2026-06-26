@@ -1,15 +1,14 @@
 
 import { Controller, Get, Post, Req, Res, UseGuards, Param } from '@nestjs/common';
-import { Response, Request } from 'express';
+import { Response } from 'express';
 import { SessionGuard } from '@guards/session.guard';
 import { CsrfGuard } from '@guards/csrf.guard';
-import { ProxyService } from '@services/proxy.service';
+import { httpService } from '../http/httpService';
 import { config } from '@configs/configuration';
+import { Logger } from '../utils/logger';
 
 @Controller('api/service')
 export class ProtectedServiceController {
-  constructor(private proxyService: ProxyService) {}
-
   @Get()
   @UseGuards(SessionGuard)
   async proxyGetRoot(@Req() req: any, @Res() res: Response) {
@@ -22,12 +21,33 @@ export class ProtectedServiceController {
     const sessionId = req.cookies?.SESSION_ID;
     const targetUrl = `${config.protectedServiceUrl}/${path}`;
 
+    Logger.debug('RequestLogger', `→ GET ${targetUrl}`, {
+      session: sessionId?.slice(0, 8) || '?',
+    });
+
     try {
-      const response = await this.proxyService.proxyRequest(sessionId, targetUrl, 'GET');
+      const response = await httpService.request({
+        url: targetUrl,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${req.userSession.accessToken}`,
+          'X-Session-ID': sessionId,
+        },
+        responseType: 'arraybuffer',
+      });
+      Logger.debug('RequestLogger', `← ${response.status} OK`, {
+        session: sessionId?.slice(0, 8) || '?',
+        url: targetUrl,
+      });
       res.set('Content-Type', response.headers['content-type'] as string);
       res.status(response.status).send(response.data);
     } catch (error) {
-      res.status(error.response?.status || 500).send(error.response?.data || 'Proxy Error');
+      const status = error.status || error.response?.status || 500;
+      Logger.warn('RequestLogger', `← ${status} ${error.message}`, {
+        session: sessionId?.slice(0, 8) || '?',
+        url: targetUrl,
+      });
+      res.status(status).send(error.response?.data || { message: error.message });
     }
   }
 
@@ -37,17 +57,34 @@ export class ProtectedServiceController {
     const sessionId = req.cookies?.SESSION_ID;
     const targetUrl = `${config.protectedServiceUrl}/${path}`;
 
+    Logger.debug('RequestLogger', `→ POST ${targetUrl}`, {
+      session: sessionId?.slice(0, 8) || '?',
+    });
+
     try {
-      const response = await this.proxyService.proxyRequest(
-        sessionId,
-        targetUrl,
-        'POST',
-        req.body
-      );
+      const response = await httpService.request({
+        url: targetUrl,
+        method: 'POST',
+        data: req.body,
+        headers: {
+          'Authorization': `Bearer ${req.userSession.accessToken}`,
+          'X-Session-ID': sessionId,
+        },
+        responseType: 'arraybuffer',
+      });
+      Logger.debug('RequestLogger', `← ${response.status} OK`, {
+      session: sessionId?.slice(0, 8) || '?',
+        url: targetUrl,
+      });
       res.set('Content-Type', response.headers['content-type'] as string);
       res.status(response.status).send(response.data);
     } catch (error) {
-      res.status(error.response?.status || 500).send(error.response?.data || 'Proxy Error');
+      const status = error.status || error.response?.status || 500;
+      Logger.warn('RequestLogger', `← ${status} ${error.message}`, {
+        session: sessionId?.slice(0, 8) || '?',
+        url: targetUrl,
+      });
+      res.status(status).send(error.response?.data || { message: error.message });
     }
   }
 }

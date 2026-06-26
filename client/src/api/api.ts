@@ -20,12 +20,14 @@ api.interceptors.request.use((config) => {
 });
 
 // Interceptor to handle 401 Unauthorized
+let isLoggingOut = false;
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Trigger logout or redirect to login
-      window.location.href = '/login';
+    if (error.response?.status === 401 && !isLoggingOut) {
+      isLoggingOut = true;
+      window.localStorage.removeItem('csrf_token');
+      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/logout`;
     }
     return Promise.reject(error);
   }

@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { oidcConfig } from '@configs/oidc.config';
 import { config } from '@configs/configuration';
-import { SessionService } from './session.service';
+import { SessionService, sessionService } from './session.service';
 import { redisClient } from '@configs/redis.config';
 import axios from 'axios';
 import * as crypto from 'crypto';
@@ -19,7 +19,7 @@ export class AuthService {
 
     const state = crypto.randomBytes(16).toString('hex');
     await redisClient.set(`state:${state}`, code_verifier, 'EX', config.auth.stateTtl);
-    Logger.info('AuthService', `Generated authorization URL for state=${state.slice(0, 8)}`);
+    Logger.info('AuthService', `Generated authorization URL`, { state: state.slice(0, 8) });
 
     const authEndpoint = `${oidcConfig.issuer}/protocol/openid-connect/auth`;
     const params = querystring.stringify({
@@ -39,11 +39,11 @@ export class AuthService {
   async handleCallback(code: string, state: string) {
     const codeVerifier = await redisClient.get(`state:${state}`);
     if (!codeVerifier) {
-      Logger.warn('AuthService', `Invalid or expired state: ${state.slice(0, 8)}`);
+      Logger.warn('AuthService', `Invalid or expired state`, { state: state.slice(0, 8) });
       throw new UnauthorizedException('Invalid or expired state');
     }
     await redisClient.del(`state:${state}`);
-    Logger.info('AuthService', `Exchanging authorization code for tokens`);
+    Logger.info('AuthService', `Exchanging authorization code for tokens`, { state: state.slice(0, 8) });
 
     const postData = querystring.stringify({
       grant_type: 'authorization_code',
@@ -71,24 +71,33 @@ export class AuthService {
         preferred_username: idTokenPayload.preferred_username,
         name: idTokenPayload.name,
       };
-      Logger.info('AuthService', `Tokens received. User: ${userInfo.preferred_username || userInfo.email}`);
+      Logger.info('AuthService', `Tokens received`, {
+        user: userInfo.preferred_username || userInfo.email || userInfo.sub,
+      });
 
       return this.sessionService.createSession(tokenSet, userInfo);
     } catch (error: any) {
-      const status = error.response?.status || 'UNKNOWN';
-      Logger.error('AuthService', `Token request failed: ${status} ${error.message}`);
+      const status = error.response?.status || 'unknown';
+      const kcError = error.response?.data?.error;
+      Logger.error('AuthService', `Token request failed: ${status} ${kcError || error.message}`, {
+        state: state.slice(0, 8),
+      });
       throw new UnauthorizedException('Authentication failed');
     }
   }
 
   async refreshAccessToken(sessionId: string) {
+    const sid = sessionId.slice(0, 8);
     const session = await this.sessionService.getSession(sessionId);
     if (!session || !session.refreshToken) {
-      Logger.warn('AuthService', `No refresh token available for session: ${sessionId.slice(0, 8)}`);
+      Logger.warn('AuthService', `No refresh token available`, {
+        session: sid,
+        reason: !session ? 'session not found' : 'refresh token is null',
+      });
       throw new UnauthorizedException('No refresh token available');
     }
 
-    Logger.info('AuthService', `Refreshing access token for session: ${sessionId.slice(0, 8)}`);
+    Logger.info('AuthService', `Refreshing access token`, { session: sid });
 
     const postData = querystring.stringify({
       grant_type: 'refresh_token',
@@ -111,12 +120,32 @@ export class AuthService {
         refreshToken: tokenSet.refresh_token,
       });
 
-      const newExpiry = new Date(this.decodeToken(tokenSet.access_token).exp * 1000).toLocaleTimeString('en-GB', { hour12: false });
-      Logger.info('AuthService', `Token refreshed. New expiry: ${newExpiry}`);
+      const decoded = this.decodeToken(tokenSet.access_token);
+      const newExpiry = new Date(decoded.exp * 1000).toLocaleTimeString('en-GB', { hour12: false });
+      const lifetimeSec = decoded.exp - Math.floor(Date.now() / 1000);
+
+      Logger.info('AuthService', `Token refreshed`, {
+        session: sid,
+        expiry: newExpiry,
+        lifetime: `${lifetimeSec}s`,
+        user: decoded.preferred_username || decoded.email || decoded.sub,
+      });
       return tokenSet.access_token;
     } catch (error: any) {
-      const status = error.response?.status || 'UNKNOWN';
-      Logger.error('AuthService', `Token refresh failed: ${status} ${error.message}`);
+      const status = error.response?.status || 'unknown';
+      const kcError = error.response?.data?.error;
+      const kcReason = error.response?.data?.error_description;
+      const isInvalidGrant = status === 400 && kcError === 'invalid_grant';
+
+      if (isInvalidGrant) {
+        Logger.error('AuthService', `Refresh rejected by Keycloak: ${status} ${kcError}`, {
+          session: sid,
+          reason: kcReason || 'Token is not active',
+        });
+        throw error;
+      }
+
+      Logger.error('AuthService', `Token refresh failed: ${status} ${error.message}`, { session: sid });
       throw new UnauthorizedException('Token refresh failed');
     }
   }
@@ -133,3 +162,5 @@ export class AuthService {
     return JSON.parse(Buffer.from(parts[1], 'base64').toString());
   }
 }
+
+export const authService = new AuthService(sessionService);

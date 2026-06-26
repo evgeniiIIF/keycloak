@@ -19,6 +19,7 @@
     "ioredis": "^5.11.1",
     "nest-keycloak-connect": "latest",
     "openid-client": "^6.8.4",
+    "jose": "^5.2.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"
   },

@@ -45,7 +45,11 @@ export class SessionService {
       await redisClient.expire(`user_sessions:${userInfo.sub}`, this.SESSION_TTL);
     }
 
-    Logger.info('SessionService', `Session ${sessionId.slice(0, 8)} created (user=${userInfo.preferred_username || userInfo.email})`);
+    Logger.info('SessionService', `Session created`, {
+      session: sessionId.slice(0, 8),
+      user: userInfo.preferred_username || userInfo.email || userInfo.sub,
+      ttl: `${this.SESSION_TTL}s`,
+    });
     return session;
   }
 
@@ -68,7 +72,7 @@ export class SessionService {
       'EX',
       this.SESSION_TTL
     );
-    Logger.info('SessionService', `Tokens updated for session ${sessionId.slice(0, 8)}`);
+    Logger.info('SessionService', `Tokens updated`, { session: sessionId.slice(0, 8) });
   }
 
   async deleteSession(sessionId: string) {
@@ -77,7 +81,10 @@ export class SessionService {
       await redisClient.srem(`user_sessions:${session.userInfo.sub}`, sessionId);
     }
     await redisClient.del(this.SESSION_PREFIX + sessionId);
-    Logger.info('SessionService', `Session ${sessionId.slice(0, 8)} deleted`);
+    Logger.info('SessionService', `Session deleted`, {
+      session: sessionId.slice(0, 8),
+      user: session?.userInfo?.preferred_username || session?.userInfo?.email || '?',
+    });
   }
 
   async deleteSessionsByUser(userId: string) {
@@ -97,3 +104,5 @@ export class SessionService {
     return crypto.randomBytes(32).toString('hex');
   }
 }
+
+export const sessionService = new SessionService();
