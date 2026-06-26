@@ -1,21 +1,16 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { oidcConfig } from '@configs/oidc.config';
 import { config } from '@configs/configuration';
 import { SessionService } from './session.service';
 import { redisClient } from '@configs/redis.config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import axios from 'axios';
 import * as crypto from 'crypto';
 import * as querystring from 'querystring';
+import { Logger } from '../utils/logger';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
-  constructor(
-    private sessionService: SessionService,
-    private httpService: HttpService,
-  ) {}
+  constructor(private sessionService: SessionService) {}
 
   async getAuthorizationUrl() {
     const code_verifier = crypto.randomBytes(32).toString('hex');
@@ -24,6 +19,7 @@ export class AuthService {
 
     const state = crypto.randomBytes(16).toString('hex');
     await redisClient.set(`state:${state}`, code_verifier, 'EX', config.auth.stateTtl);
+    Logger.info('AuthService', `Generated authorization URL for state=${state.slice(0, 8)}`);
 
     const authEndpoint = `${oidcConfig.issuer}/protocol/openid-connect/auth`;
     const params = querystring.stringify({
@@ -43,10 +39,11 @@ export class AuthService {
   async handleCallback(code: string, state: string) {
     const codeVerifier = await redisClient.get(`state:${state}`);
     if (!codeVerifier) {
-      this.logger.warn(`Invalid or expired state: ${state}`);
+      Logger.warn('AuthService', `Invalid or expired state: ${state.slice(0, 8)}`);
       throw new UnauthorizedException('Invalid or expired state');
     }
     await redisClient.del(`state:${state}`);
+    Logger.info('AuthService', `Exchanging authorization code for tokens`);
 
     const postData = querystring.stringify({
       grant_type: 'authorization_code',
@@ -58,11 +55,13 @@ export class AuthService {
     });
 
     try {
-      const { data: tokenSet } = await firstValueFrom(
-        this.httpService.post(`/realms/${config.keycloak.realm}/protocol/openid-connect/token`, postData, {
+      const { data: tokenSet } = await axios.post(
+        `/realms/${config.keycloak.realm}/protocol/openid-connect/token`,
+        postData,
+        {
           baseURL: `http://${oidcConfig.hostname}:${oidcConfig.port}`,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        }),
+        },
       );
 
       const idTokenPayload = JSON.parse(Buffer.from(tokenSet.id_token.split('.')[1], 'base64').toString());
@@ -72,10 +71,12 @@ export class AuthService {
         preferred_username: idTokenPayload.preferred_username,
         name: idTokenPayload.name,
       };
+      Logger.info('AuthService', `Tokens received. User: ${userInfo.preferred_username || userInfo.email}`);
 
       return this.sessionService.createSession(tokenSet, userInfo);
-    } catch (error) {
-      this.logger.error(`Token request failed: ${error.message}`, error.stack);
+    } catch (error: any) {
+      const status = error.response?.status || 'UNKNOWN';
+      Logger.error('AuthService', `Token request failed: ${status} ${error.message}`);
       throw new UnauthorizedException('Authentication failed');
     }
   }
@@ -83,14 +84,11 @@ export class AuthService {
   async refreshAccessToken(sessionId: string) {
     const session = await this.sessionService.getSession(sessionId);
     if (!session || !session.refreshToken) {
-      this.logger.warn(`No refresh token available for session: ${sessionId}`);
+      Logger.warn('AuthService', `No refresh token available for session: ${sessionId.slice(0, 8)}`);
       throw new UnauthorizedException('No refresh token available');
     }
 
-    this.logger.log(`🔄 Refreshing access token for session: ${sessionId}`);
-    this.logger.log(
-      `📅 Current token expires at: ${new Date(this.decodeToken(session.accessToken).exp * 1000).toISOString()}`,
-    );
+    Logger.info('AuthService', `Refreshing access token for session: ${sessionId.slice(0, 8)}`);
 
     const postData = querystring.stringify({
       grant_type: 'refresh_token',
@@ -100,23 +98,25 @@ export class AuthService {
     });
 
     try {
-      const { data: tokenSet } = await firstValueFrom(
-        this.httpService.post(`/realms/${config.keycloak.realm}/protocol/openid-connect/token`, postData, {
+      const { data: tokenSet } = await axios.post(
+        `/realms/${config.keycloak.realm}/protocol/openid-connect/token`,
+        postData,
+        {
           baseURL: `http://${oidcConfig.hostname}:${oidcConfig.port}`,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        }),
+        },
       );
       await this.sessionService.updateTokens(sessionId, {
         accessToken: tokenSet.access_token,
         refreshToken: tokenSet.refresh_token,
       });
 
-      this.logger.log(
-        `✅ Token refreshed successfully. New token expires at: ${new Date(this.decodeToken(tokenSet.access_token).exp * 1000).toISOString()}`,
-      );
+      const newExpiry = new Date(this.decodeToken(tokenSet.access_token).exp * 1000).toLocaleTimeString('en-GB', { hour12: false });
+      Logger.info('AuthService', `Token refreshed. New expiry: ${newExpiry}`);
       return tokenSet.access_token;
-    } catch (error) {
-      this.logger.error(`Token refresh failed: ${error.message}`, error.stack);
+    } catch (error: any) {
+      const status = error.response?.status || 'UNKNOWN';
+      Logger.error('AuthService', `Token refresh failed: ${status} ${error.message}`);
       throw new UnauthorizedException('Token refresh failed');
     }
   }

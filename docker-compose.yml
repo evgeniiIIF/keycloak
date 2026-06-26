@@ -27,6 +27,8 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME: localhost
       KC_HTTP_PORT: 8080
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_HTTP_ENABLED: "true"
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_HTTP_ADMIN_EVENTS_URL: "http://bff:3000/api/auth/admin-events"
     ports:
       - "8080:8080"
     depends_on:
@@ -43,11 +45,92 @@ services:
       - keycloak-network
 
   bff:
-    image: bff-service # Placeholder if needed, but let's use build
+    image: bff-service
+    build:
+      context: ./bff
+      dockerfile: Dockerfile.dev
+    container_name: bff_service
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./bff:/app
+      - /app/node_modules
+    environment:
+      PORT: ${PORT}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PROTECTED_SERVICE_URL: http://protected-service:8080
+      TZ: Europe/Moscow
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - keycloak
+      - redis
+    networks:
+      - keycloak-network
+
+  protected-service:
+    build:
+      context: ./protected-service
+      dockerfile: Dockerfile.dev
+    container_name: protected_service
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./protected-service:/app
+      - /app/node_modules
+    environment:
+      JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      TZ: Europe/Moscow
+    depends_on:
+      - keycloak
+    networks:
+      - keycloak-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: react_frontend
+    ports:
+      - "8082:3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM}
+      VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID}
+    depends_on:
+      - bff
+    networks:
+      - keycloak-network
+
+  frontend-prod:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
+        - VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
+    container_name: react_frontend_prod
+    ports:
+      - "8082:80"
+    profiles:
+      - prod
+    depends_on:
+      - bff-prod
+    networks:
+      - keycloak-network
+
+  bff-prod:
+    image: bff-service
     build:
       context: ./bff
       dockerfile: Dockerfile
-    container_name: bff_service
+    container_name: bff_service_prod
     ports:
       - "3000:3000"
     environment:
@@ -60,38 +143,27 @@ services:
       PROTECTED_SERVICE_URL: http://protected-service:8080
     extra_hosts:
       - "localhost:host-gateway"
+    profiles:
+      - prod
     depends_on:
       - keycloak
       - redis
     networks:
       - keycloak-network
 
-  protected-service:
+  protected-service-prod:
     build:
       context: ./protected-service
       dockerfile: Dockerfile
-    container_name: protected_service
+    container_name: protected_service_prod
     ports:
-      - "8083:8080" # mapped differently to avoid collision if needed, but internal is 8080
+      - "8083:8080"
     environment:
       JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+    profiles:
+      - prod
     depends_on:
       - keycloak
-    networks:
-      - keycloak-network
-
-  frontend:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-      args:
-        - VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
-        - VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
-    container_name: react_frontend
-    ports:
-      - "8082:80"
-    depends_on:
-      - bff
     networks:
       - keycloak-network
 

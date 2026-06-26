@@ -1,14 +1,13 @@
-import { Controller, Get, Post, Query, Req, Res, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from '@services/auth.service';
 import { SessionService } from '@services/session.service';
 import { SessionGuard } from '@guards/session.guard';
 import { config } from '@configs/configuration';
+import { Logger } from '../utils/logger';
 
 @Controller()
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
   constructor(
     private authService: AuthService,
     private sessionService: SessionService,
@@ -16,6 +15,7 @@ export class AuthController {
 
   @Get('login')
   async login(@Res() res: Response) {
+    Logger.info('AuthController', `Login request initiated`);
     const { url } = await this.authService.getAuthorizationUrl();
     res.redirect(url);
   }
@@ -27,6 +27,7 @@ export class AuthController {
     @Res() res: Response,
   ) {
     try {
+      Logger.info('AuthController', `Callback received code=${code.slice(0, 8)}... state=${state.slice(0, 8)}`);
       const session = await this.authService.handleCallback(code, state);
 
       res.cookie('SESSION_ID', session.sessionId, {
@@ -36,9 +37,10 @@ export class AuthController {
         path: '/',
       });
 
+      Logger.info('AuthController', `Session cookie set, redirecting to frontend`);
       res.redirect(config.frontendUrl + '/');
     } catch (e) {
-      this.logger.error(`Callback error: ${e.message}`, e.stack);
+      Logger.error('AuthController', `Callback error: ${e.message}`);
       res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
     }
   }
