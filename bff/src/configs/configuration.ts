@@ -15,7 +15,7 @@ export const config = {
   },
   keycloak: {
     realm: process.env.KEYCLOAK_REALM || 'master',
-    clientId: process.env.KEYCLOAK_CLIENT_ID || 'backend-client',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'bff-client',
     secret: process.env.KEYCLOAK_CLIENT_SECRET || 'secret-key',
   },
 };
