@@ -4,10 +4,12 @@ import { HttpClient } from '../services/http-client';
 import { config } from '../config/config';
 import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
+import { RequireSession, RequireCsrf } from '../decorators/auth.decorator';
 
 type HttpMethod = 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 @Controller('api/service')
+@RequireSession()
 export class ProxyController {
   constructor(private http: HttpClient) {}
 
@@ -22,21 +24,25 @@ export class ProxyController {
   }
 
   @Post('*')
+  @RequireCsrf()
   async post(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
     return this.proxyMutate(path, req, res, 'POST');
   }
 
   @Put('*')
+  @RequireCsrf()
   async put(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
     return this.proxyMutate(path, req, res, 'PUT');
   }
 
   @Delete('*')
+  @RequireCsrf()
   async delete(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
     return this.proxyMutate(path, req, res, 'DELETE');
   }
 
   @Patch('*')
+  @RequireCsrf()
   async patch(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
     return this.proxyMutate(path, req, res, 'PATCH');
   }
