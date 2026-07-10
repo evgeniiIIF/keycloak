@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: keycloak_db_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - keycloak-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6
+    container_name: keycloak_server_prod
+    command: start
+    volumes:
+      - ./themes:/opt/keycloak/themes
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME: ${KC_HOSTNAME:-localhost}
+      KC_HTTP_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - keycloak-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_session_store_prod
+    networks:
+      - keycloak-network
+
+  bff:
+    image: bff-service
+    build:
+      context: ./bff
+      dockerfile: Dockerfile
+    container_name: bff_service_prod
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: ${PORT}
+      SESSION_SECRET: ${SESSION_SECRET}
+      NODE_ENV: production
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PROTECTED_SERVICE_URL: http://protected-service:8080
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8082}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8082}
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - keycloak
+      - redis
+    networks:
+      - keycloak-network
+
+  protected-service:
+    build:
+      context: ./protected-service
+      dockerfile: Dockerfile
+    container_name: protected_service_prod
+    ports:
+      - "8083:8080"
+    environment:
+      JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+    depends_on:
+      - keycloak
+    networks:
+      - keycloak-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: react_frontend_prod
+    ports:
+      - "8082:80"
+    depends_on:
+      - bff
+    networks:
+      - keycloak-network
+
+networks:
+  keycloak-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

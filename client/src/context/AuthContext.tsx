@@ -27,13 +27,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setProfile(user);
       setCsrfToken(csrfToken);
-      window.localStorage.setItem('csrf_token', csrfToken);
       setAuthenticated(true);
     } catch (error) {
       setAuthenticated(false);
       setProfile(null);
       setCsrfToken(null);
-      window.localStorage.removeItem('csrf_token');
     } finally {
       setLoading(false);
     }
@@ -44,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL}/login`;
+    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/login`;
   };
 
   const logout = () => {

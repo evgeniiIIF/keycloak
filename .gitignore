@@ -9,7 +9,7 @@ dist/
 build/
 
 # Ключи и пароли
-# .env
+.env
 *.pem
 *.key
 *.crt

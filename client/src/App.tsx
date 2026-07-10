@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { authenticated, loading } = useAuth();
   if (loading) return null;
   if (!authenticated) {
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/logout`;
+    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/login`;
     return null;
   }
   return children;

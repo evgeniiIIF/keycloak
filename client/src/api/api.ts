@@ -2,16 +2,15 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
-  withCredentials: true, // Essential for sending SESSION_ID cookie
+  withCredentials: true,
 });
 
-// Interceptor to add CSRF token to mutating requests
+// CSRF-токен
 api.interceptors.request.use((config) => {
   const method = config.method?.toUpperCase();
   if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-    // Note: we'll use a simple global variable or a store for the csrfToken
-    // since we can't easily use hooks inside a plain JS file.
-    const csrfToken = window.localStorage.getItem('csrf_token');
+    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+    const csrfToken = match ? decodeURIComponent(match[1]) : null;
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
@@ -19,15 +18,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor to handle 401 Unauthorized
+// 401 → сразу на логин
 let isLoggingOut = false;
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401 && !isLoggingOut) {
       isLoggingOut = true;
-      window.localStorage.removeItem('csrf_token');
-      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/logout`;
+      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/login`;
     }
     return Promise.reject(error);
   }

@@ -1,123 +1,96 @@
-import { Controller, Get, Post, Query, Req, Res, UseGuards, Header } from '@nestjs/common';
-import { Response, Request } from 'express';
-import { AuthService } from '@services/auth.service';
-import { SessionService } from '@services/session.service';
-import { SessionGuard } from '@guards/session.guard';
-import { config } from '@configs/configuration';
-import { oidcConfig } from '@configs/oidc.config';
-import { Logger } from '../utils/logger';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { AuthService } from '../services/auth.service';
+import { KeycloakClient } from '../services/keycloak-client';
+import { config } from '../config/config';
+import { CallbackQueryDto } from '../dto/callback.dto';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+
+const SESSION_COOKIE_NAME = 'connect.sid';
 
 @Controller()
 export class AuthController {
   constructor(
     private authService: AuthService,
-    private sessionService: SessionService,
+    private keycloak: KeycloakClient,
   ) {}
 
   @Get('login')
-  async login(@Res() res: Response) {
-    const { url, state } = await this.authService.getAuthorizationUrl();
-    Logger.info('AuthController', `Login request initiated`, { state: state.slice(0, 8) });
+  async login(@Req() req: Request, @Res() res: Response) {
+    const url = this.authService.buildAuthorizationUrl(req.session);
     res.redirect(url);
   }
 
   @Get('callback')
-  async callback(
-    @Query('code') code: string,
-    @Query('state') state: string,
-    @Res() res: Response,
-  ) {
+  async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
+    const { session } = req;
+
+    if (query.error) {
+      Logger.warn('Auth', `OAuth error: ${query.error}`);
+      res.redirect(`${config.frontendUrl}/login?error=${query.error}`);
+      return;
+    }
+
+    if (!query.code || !query.state) {
+      res.redirect(`${config.frontendUrl}/login?error=missing_params`);
+      return;
+    }
+
     try {
-      Logger.info('AuthController', `Callback received`, {
-        code: code.slice(0, 8),
-        state: state.slice(0, 8),
-      });
-      const session = await this.authService.handleCallback(code, state);
+      const oldCsrf = session.csrfToken;
 
-      res.cookie('SESSION_ID', session.sessionId, {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
-        path: '/',
+      await new Promise<void>((resolve, reject) => {
+        session.regenerate((err: Error | null) => (err ? reject(err) : resolve()));
       });
 
-      Logger.info('AuthController', `Session cookie set, redirecting to frontend`, {
-        session: session.sessionId.slice(0, 8),
-        user: session.userInfo.preferred_username || session.userInfo.email,
+      if (oldCsrf) session.csrfToken = oldCsrf;
+
+      await this.authService.handleCallback(query.code, query.state, session);
+
+      session.save((err: Error | null) => {
+        if (err) {
+          Logger.error('Auth', `Session save: ${err.message}`);
+          res.redirect(`${config.frontendUrl}/login?error=session_save_failed`);
+          return;
+        }
+        Logger.info('Auth', 'Login complete', {
+          user: session.userInfo?.preferred_username || session.userInfo?.email || '?',
+        });
+        res.redirect(`${config.frontendUrl}/`);
       });
-      res.redirect(config.frontendUrl + '/');
-    } catch (e) {
-      Logger.error('AuthController', `Callback error: ${e.message}`, {
-        state: state?.slice(0, 8) || '?',
-      });
+    } catch (err: unknown) {
+      Logger.error('Auth', `Callback error: ${errorMessage(err)}`);
       res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
     }
   }
 
   @Get('api/me')
-  @UseGuards(SessionGuard)
-  async me(@Req() req: any) {
-    const session = req.userSession;
-    return {
-      user: session.userInfo,
-      csrfToken: session.csrfToken,
-    };
+  me(@Req() req: Request) {
+    return { user: req.session.userInfo };
   }
 
-  // Новый GET /logout вместо POST
-  @Get('logout')
+  @Post('logout')
   async logout(@Req() req: Request, @Res() res: Response) {
-    const sessionId = req.cookies?.SESSION_ID;
-    let idToken: string | undefined;
+    const { session } = req;
+    const { idToken, refreshToken, userInfo } = session;
+    const userId = userInfo?.sub;
 
-    if (sessionId) {
-      const session = await this.sessionService.getSession(sessionId);
-      if (session) {
-        idToken = session.idToken;
-        await this.sessionService.deleteSession(sessionId);
-      }
+    if (refreshToken) {
+      await this.keycloak.revokeRefreshToken(refreshToken);
     }
 
-    res.clearCookie('SESSION_ID', { path: '/' });
-
-    if (idToken) {
-      const logoutUrl = this.authService.getLogoutUrl(idToken);
-      res.redirect(logoutUrl);
-    } else {
-      res.redirect('/login');
-    }
-  }
-
-  @Post('api/auth/backchannel-logout')
-  @Header('Cache-Control', 'no-store')
-  async backchannelLogout(@Req() req: Request, @Res() res: Response) {
-    const logoutToken = req.body?.logout_token;
-
-    if (!logoutToken) {
-      Logger.warn('AuthController', 'Backchannel logout: no logout_token in body');
-      res.status(400).send('Missing logout_token');
-      return;
-    }
-
-    try {
-      const JWKS = createRemoteJWKSet(new URL(oidcConfig.jwksUri));
-      const { payload } = await jwtVerify(logoutToken, JWKS, {
-        issuer: oidcConfig.issuer,
+    if (userId && session.id) {
+      await this.authService.unregisterSession(userId, session.id).catch((err: unknown) => {
+        Logger.warn('Auth', `Unregister session failed: ${errorMessage(err)}`);
       });
-
-      const sub = payload.sub as string;
-
-      Logger.info('AuthController', 'Backchannel logout received', { sub });
-
-      if (sub) {
-        await this.sessionService.deleteSessionsByUser(sub);
-      }
-
-      res.status(200).send('OK');
-    } catch (error) {
-      Logger.error('AuthController', `Backchannel logout validation failed: ${error.message}`);
-      res.status(401).send('Invalid logout token');
     }
+
+    session.destroy((err: Error | null) => {
+      if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      res.clearCookie('XSRF-TOKEN', { path: '/' });
+      res.redirect(idToken ? this.authService.getLogoutUrl(idToken) : '/login');
+    });
   }
 }

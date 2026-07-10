@@ -6,22 +6,14 @@
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "skipLibCheck": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
-    "strictPropertyInitialization": false,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@controllers/*": ["./src/controllers/*"],
-      "@services/*": ["./src/services/*"],
-      "@configs/*": ["./src/configs/*"],
-      "@middlewares/*": ["./src/middlewares/*"],
-      "@guards/*": ["./src/guards/*"]
-    }
+    "strict": true,
+    "types": ["jest", "node"]
   }
 }

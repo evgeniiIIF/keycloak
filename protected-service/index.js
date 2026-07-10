@@ -58,7 +58,10 @@ app.get('/', async (req, res) => {
   const claims = decodeToken(token);
 
   try {
-    const { payload } = await jwtVerify(token, JWKS);
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: process.env.KEYCLOAK_ISSUER || `http://keycloak:8080/realms/${process.env.KEYCLOAK_REALM || 'TestRealm'}`,
+      audience: process.env.KEYCLOAK_CLIENT_ID || 'protected-client',
+    });
     log('INFO', `JWT verification OK`, {
       user: payload.preferred_username || payload.email || payload.sub,
       exp: new Date(payload.exp * 1000).toLocaleTimeString('en-GB', { hour12: false }),

@@ -1,0 +1,1816 @@
+СТРУКТУРА ПРОЕКТА:
+==================================================
+
+    ├── .dockerignore
+    ├── .env.example
+    ├── .prettierrc
+    ├── Dockerfile
+    ├── Dockerfile.dev
+    ├── SESSION_ARCHITECTURE.md
+    ├── eslint.config.js
+    ├── jest.config.js
+    ├── nest-cli.json
+    ├── package.json
+    ├── tsconfig.json
+    src/
+        ├── app.module.ts
+        ├── main.ts
+        ├── test-setup.ts
+        services/
+            ├── auth.service.ts
+            ├── http-client.ts
+            ├── jwks.service.ts
+            ├── keycloak-client.spec.ts
+            ├── keycloak-client.ts
+            ├── redis.service.ts
+        filters/
+            ├── http-exception.filter.ts
+        interceptors/
+            ├── session-context.interceptor.ts
+        middleware/
+            ├── csrf.middleware.ts
+            ├── security.middleware.spec.ts
+            ├── security.middleware.ts
+        types/
+            ├── keycloak.d.ts
+            ├── session.d.ts
+        dto/
+            ├── callback.dto.ts
+        config/
+            ├── config.ts
+            ├── routes.ts
+        shared/
+            ├── logger.ts
+            ├── request-context.spec.ts
+            ├── request-context.ts
+            ├── token-refresh-lock.ts
+            ├── utils.ts
+        controllers/
+            ├── auth.controller.ts
+            ├── backchannel.controller.ts
+            ├── health.controller.ts
+            ├── proxy.controller.ts
+
+==================================================
+
+СОДЕРЖИМОЕ ФАЙЛОВ:
+==================================================
+
+.dockerignore
+-------------
+node_modules
+dist
+.git
+.env
+
+
+.env.example
+------------
+SESSION_SECRET=<32+ chars random — generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+NODE_ENV=development
+PORT=3000
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+KEYCLOAK_CLIENT_ID=bff-client
+KEYCLOAK_CLIENT_SECRET=
+KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
+KEYCLOAK_REDIRECT_URI=http://localhost:3000/callback
+PROTECTED_SERVICE_URL=http://protected-service:8080
+FRONTEND_URL=http://localhost:8082
+CORS_ORIGINS=http://localhost:8082
+# Optional: SESSION_PREFIX=sess:  SESSION_TTL=86400
+
+
+.prettierrc
+-----------
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "semi": true
+}
+
+
+Dockerfile
+----------
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:3000/health || exit 1
+CMD ["npm", "run", "start:prod"]
+
+
+Dockerfile.dev
+--------------
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+EXPOSE 3000
+CMD ["npm", "run", "start:dev"]
+
+
+SESSION_ARCHITECTURE.md
+-----------------------
+# Архитектура сессий
+
+## Где хранится сессия
+
+### 1. Кука на клиенте (`connect.sid`)
+- Содержит **только ID сессии** (не данные)
+- Имя: `connect.sid`
+- Настройки: `httpOnly: true`, `secure: true` (prod), `sameSite: 'lax'`
+
+### 2. Данные сессии в Redis (автоматически)
+- Ключ: `sess:<sessionId>`
+- Хранит: `connect-redis` автоматически при вызове `session.save()`
+- Содержит: `{ accessToken, refreshToken, idToken, userInfo, csrfToken, oauth }`
+
+```typescript
+// src/main.ts:43-56 — единственная необходимая настройка
+session({
+  store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
+  secret: config.session.secret,
+  // ...
+})
+```
+
+`connect-redis` сериализует весь объект сессии в JSON и кладёт в Redis. Ручной код не нужен.
+
+### 3. Индекс сессий пользователя в Redis (вручную)
+- Ключ: `user_sessions:<userId>` (Redis Set)
+- Хранит: `RedisService.addUserSession()`
+- Содержит: список session ID для пользователя
+
+```typescript
+// src/services/redis.service.ts:30-32
+async addUserSession(userId: string, sessionId: string): Promise<void> {
+  await this.client.sAdd(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
+}
+```
+
+Это наш код — нужен для массового logout (удалить все сессии пользователя).
+
+## Поток данных
+
+```
+1. GET /login
+   → express-session генерирует session.id
+   → кука connect.sid=sid123 отправляется клиенту
+
+2. GET /callback?code=...
+   → session.regenerate() (новый session.id)
+   → session.accessToken = "eyJ..."
+   → session.refreshToken = "eyJ..."
+   → session.userInfo = { sub: "user-123", ... }
+   → session.save() ← connect-redis кладёт всё в Redis: sess:sid123 = {...}
+   → RedisService.addUserSession("user-123", "sid123") ← добавляет в user_sessions:user-123
+
+3. GET /api/me
+   → кука connect.sid=sid123
+   → express-session достаёт sess:sid123 из Redis
+   → req.session.accessToken, req.session.userInfo доступны
+
+4. POST /logout
+   → RedisService.removeUserSession("user-123", "sid123") ← удаляет из индекса
+   → session.destroy() ← express-session удаляет sess:sid123 из Redis
+```
+
+## Итого
+
+| Что | Кто хранит | Ключ в Redis | Значение |
+|-----|-----------|--------------|----------|
+| Данные сессии (токены, пользователь) | `connect-redis` (автоматически) | `sess:<sessionId>` | JSON со всеми полями сессии |
+| Индекс сессий пользователя | `RedisService` (вручную) | `user_sessions:<userId>` | Set с session ID |
+
+- **`connect-redis`** — хранит данные сессии автоматически
+- **`RedisService`** — управляет индексом (какие сессии у пользователя) для массовых операций
+
+
+eslint.config.js
+----------------
+const tseslint = require('@typescript-eslint/eslint-plugin');
+const tsparser = require('@typescript-eslint/parser');
+const prettier = require('eslint-config-prettier');
+
+module.exports = [
+  {
+    files: ['src/**/*.ts'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        project: 'tsconfig.json',
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      '@typescript-eslint/interface-name-prefix': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  prettier,
+];
+
+
+jest.config.js
+--------------
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: 'src',
+  testRegex: '.*\\.spec\\.ts$',
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+  },
+  collectCoverageFrom: [
+    'controllers/**/*.ts',
+    'services/**/*.ts',
+    'middleware/**/*.ts',
+    '!**/*.dto.ts',
+    '!**/*.module.ts',
+    '!**/*.d.ts',
+  ],
+  coverageDirectory: '../coverage',
+  testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test-setup.ts'],
+};
+
+
+nest-cli.json
+-------------
+{
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+
+
+package.json
+------------
+{
+  "name": "nestjs-keycloak-bff",
+  "version": "0.0.1",
+  "description": "NestJS BFF with Keycloak Auth",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/terminus": "^10.0.0",
+    "@nestjs/throttler": "^6.5.0",
+    "axios": "^1.7.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "connect-redis": "^7.1.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.0",
+    "express-session": "^1.17.3",
+    "helmet": "^8.2.0",
+    "jose": "^5.2.0",
+    "redis": "^4.6.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.4.22",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express-session": "^1.17.7",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.63.0",
+    "@typescript-eslint/parser": "^8.63.0",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^29.0.0",
+    "prettier": "^3.9.4",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+
+
+tsconfig.json
+-------------
+{
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["jest", "node"]
+  }
+}
+
+
+src/app.module.ts
+-----------------
+import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
+
+import { RedisService } from './services/redis.service';
+import { JwksService } from './services/jwks.service';
+import { KeycloakClient } from './services/keycloak-client';
+import { AuthService } from './services/auth.service';
+import { HttpClient } from './services/http-client';
+
+import { AuthController } from './controllers/auth.controller';
+import { ProxyController } from './controllers/proxy.controller';
+import { HealthController } from './controllers/health.controller';
+import { BackchannelController } from './controllers/backchannel.controller';
+
+import { SessionContextInterceptor } from './interceptors/session-context.interceptor';
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    TerminusModule,
+  ],
+  controllers: [AuthController, ProxyController, HealthController, BackchannelController],
+  providers: [
+    RedisService,
+    JwksService,
+    KeycloakClient,
+    AuthService,
+    HttpClient,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
+  ],
+  exports: [RedisService],
+})
+export class AppModule {}
+
+
+src/main.ts
+-----------
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import express from 'express';
+import { AppModule } from './app.module';
+import { config } from './config/config';
+import { RedisService } from './services/redis.service';
+import { SecurityMiddleware } from './middleware/security.middleware';
+import { CsrfMiddleware } from './middleware/csrf.middleware';
+import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { Logger } from './shared/logger';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const session = require('express-session');
+import RedisStore from 'connect-redis';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const redis = app.get(RedisService);
+
+  // Trust proxy (behind nginx)
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // Security
+  app.use(helmet());
+  app.use(cookieParser());
+
+  // Body parsers (urlencoded needed for Keycloak backchannel logout)
+  app.use(express.urlencoded({ extended: true }));
+
+  // Validation
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
+
+  // Global error handler
+  app.useGlobalFilters(new HttpExceptionFilter());
+
+  const isProd = config.nodeEnv === 'production';
+
+  // Session with Redis store
+  app.use(
+    session({
+      store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
+      secret: config.session.secret,
+      resave: false,
+      saveUninitialized: false,
+      rolling: true,
+      cookie: {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: config.session.ttl * 1000,
+      },
+    }),
+  );
+
+  // Double-submit CSRF: set XSRF-TOKEN cookie on first visit
+  const csrf = app.get(CsrfMiddleware);
+  app.use(csrf.use.bind(csrf));
+
+  // CORS
+  app.enableCors({
+    origin: config.corsOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
+  // Security middleware (route-based guard)
+  const sec = app.get(SecurityMiddleware);
+  app.use(sec.use.bind(sec));
+
+  // Graceful shutdown
+  app.enableShutdownHooks();
+
+  await app.listen(config.port);
+  Logger.info('App', `Running on http://localhost:${config.port}`);
+}
+
+bootstrap();
+
+
+src/test-setup.ts
+-----------------
+process.env.SESSION_SECRET = 'test-secret-key-that-is-at-least-32-characters-long-for-testing';
+process.env.NODE_ENV = 'test';
+process.env.KEYCLOAK_ISSUER = 'http://localhost:8080/realms/TestRealm';
+process.env.KEYCLOAK_CLIENT_ID = 'bff-client';
+process.env.KEYCLOAK_CLIENT_SECRET = 'test-secret';
+process.env.REDIS_HOST = 'localhost';
+process.env.REDIS_PORT = '6379';
+
+
+src/services/auth.service.ts
+----------------------------
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { decodeJwt } from 'jose';
+import * as crypto from 'crypto';
+import { config } from '../config/config';
+import { RedisService } from './redis.service';
+import { KeycloakClient } from './keycloak-client';
+import { Logger } from '../shared/logger';
+import { KeycloakJwtPayload } from '../types/keycloak';
+import { BffSession } from '../types/session';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private redis: RedisService,
+    private keycloak: KeycloakClient,
+  ) {}
+
+  buildAuthorizationUrl(session: BffSession): string {
+    const codeVerifier = crypto.randomBytes(32).toString('hex');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest().toString('base64url');
+    const state = crypto.randomBytes(16).toString('hex');
+
+    session.oauth = { state, codeVerifier };
+
+    const params = new URLSearchParams({
+      client_id: config.keycloak.clientId,
+      response_type: 'code',
+      redirect_uri: config.keycloak.redirectUri,
+      scope: 'openid profile email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return `${config.keycloak.issuer}/protocol/openid-connect/auth?${params}`;
+  }
+
+  async handleCallback(code: string, state: string, session: BffSession): Promise<void> {
+    if (!session.oauth) throw new UnauthorizedException('No pending auth');
+    if (session.oauth.state !== state) throw new UnauthorizedException('State mismatch');
+
+    const tokenSet = await this.keycloak.exchangeCode(code, session.oauth.codeVerifier);
+
+    if (!tokenSet.id_token) throw new UnauthorizedException('Missing id_token');
+    const idPayload = decodeJwt(tokenSet.id_token) as KeycloakJwtPayload;
+
+    delete session.oauth;
+    session.accessToken = tokenSet.access_token;
+    session.refreshToken = tokenSet.refresh_token;
+    session.idToken = tokenSet.id_token;
+    session.userInfo = {
+      sub: idPayload.sub!,
+      email: idPayload.email,
+      preferred_username: idPayload.preferred_username,
+      name: idPayload.name,
+    };
+
+    await this.redis.addUserSession(session.userInfo.sub, session.id!);
+  }
+
+  async refreshTokens(session: BffSession): Promise<{ accessToken: string; refreshToken: string }> {
+    if (!session.refreshToken) throw new UnauthorizedException('No refresh token');
+
+    const tokenSet = await this.keycloak.refreshTokens(session.refreshToken);
+
+    session.accessToken = tokenSet.access_token;
+    session.refreshToken = tokenSet.refresh_token;
+    if (tokenSet.id_token) session.idToken = tokenSet.id_token;
+
+    if (session.userInfo?.sub) {
+      await this.redis.refreshUserSessionTtl(session.userInfo.sub);
+    }
+    if (session.id) {
+      await this.redis.refreshSessionStoreTtl(session.id);
+    }
+
+    return { accessToken: tokenSet.access_token, refreshToken: tokenSet.refresh_token };
+  }
+
+  getLogoutUrl(idToken: string): string {
+    const url = new URL(`${config.keycloak.issuer}/protocol/openid-connect/logout`);
+    url.searchParams.append('id_token_hint', idToken);
+    url.searchParams.append('post_logout_redirect_uri', `${config.frontendUrl}/home`);
+    return url.toString();
+  }
+
+  async unregisterSession(userId: string, sessionId: string): Promise<void> {
+    await this.redis.removeUserSession(userId, sessionId);
+  }
+
+  async destroyUserSessions(userId: string): Promise<void> {
+    const sessionIds = await this.redis.getUserSessions(userId);
+    if (sessionIds.length === 0) return;
+
+    await this.redis.deleteUserSessions(userId);
+    Logger.info('AuthService', `Destroyed ${sessionIds.length} sessions for ${userId}`);
+  }
+}
+
+
+src/services/http-client.ts
+---------------------------
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import { requestContext } from '../shared/request-context';
+import { AuthService } from './auth.service';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+import { isRefreshing, startRefresh } from '../shared/token-refresh-lock';
+
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+@Injectable()
+export class HttpClient {
+  private readonly instance: AxiosInstance;
+
+  constructor(private authService: AuthService) {
+    this.instance = axios.create();
+    this.instance.interceptors.request.use((cfg) => this.onRequest(cfg));
+    this.instance.interceptors.response.use(
+      (res) => res,
+      (err) => this.onResponseError(err),
+    );
+  }
+
+  async get<T, P>(url: string, params?: P): Promise<T> {
+    const res = await this.instance.get<T>(url, { params });
+    return res.data;
+  }
+
+  async post<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.instance.post<T>(url, data);
+    return res.data;
+  }
+
+  async put<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.instance.put<T>(url, data);
+    return res.data;
+  }
+
+  async delete<T>(url: string): Promise<T> {
+    const res = await this.instance.delete<T>(url);
+    return res.data;
+  }
+
+  async patch<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.instance.patch<T>(url, data);
+    return res.data;
+  }
+
+  private async onRequest(cfg: InternalAxiosRequestConfig) {
+    const ctx = requestContext.getStore();
+    if (ctx?.session?.accessToken) {
+      cfg.headers.Authorization = `Bearer ${ctx.session.accessToken}`;
+    }
+    return cfg;
+  }
+
+  private async onResponseError(error: AxiosError) {
+    const reqCfg = error.config as RetryableConfig | undefined;
+
+    if (error.response?.status === 401 && reqCfg && !reqCfg._retry) {
+      return this.handle401(error, reqCfg);
+    }
+
+    throw error;
+  }
+
+  private async handle401(error: AxiosError, reqCfg: RetryableConfig) {
+    const ctx = requestContext.getStore();
+    const session = ctx?.session;
+
+    if (!session?.refreshToken) throw error;
+
+    const sessionId = session.id;
+    if (!sessionId) throw error;
+
+    reqCfg._retry = true;
+
+    const existingRefresh = isRefreshing(sessionId);
+    if (existingRefresh) {
+      Logger.warn('HttpClient', '401 — another refresh in progress, waiting', { url: reqCfg.url });
+      await existingRefresh;
+
+      await new Promise<void>((resolve, reject) => {
+        session.reload((err) => (err ? reject(err) : resolve()));
+      });
+
+      reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
+      return this.instance(reqCfg);
+    }
+
+    Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
+
+    const { release } = startRefresh(sessionId);
+    try {
+      await this.authService.refreshTokens(session);
+
+      reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
+      Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
+
+      return this.instance(reqCfg);
+    } catch (refreshErr: unknown) {
+      const err = refreshErr as AxiosError<{ error?: string; error_description?: string }>;
+      const isInvalidGrant =
+        err.response?.status === 400 &&
+        err.response?.data?.error === 'invalid_grant';
+
+      if (isInvalidGrant) {
+        Logger.error('HttpClient', 'Refresh rejected', {
+          reason: err.response?.data?.error_description,
+        });
+        throw new UnauthorizedException('Session expired');
+      }
+
+      Logger.error('HttpClient', `Refresh failed: ${errorMessage(refreshErr)}`);
+      throw refreshErr;
+    } finally {
+      release();
+    }
+  }
+}
+
+
+src/services/jwks.service.ts
+----------------------------
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { createRemoteJWKSet } from 'jose';
+import { config } from '../config/config';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+
+@Injectable()
+export class JwksService implements OnModuleDestroy {
+  private jwks: ReturnType<typeof createRemoteJWKSet>;
+  private timer: NodeJS.Timeout;
+
+  constructor() {
+    this.jwks = this.createJWKS();
+    this.timer = setInterval(() => {
+      try {
+        this.jwks = this.createJWKS();
+      } catch (err: unknown) {
+        Logger.error('JwksService', `JWKS refresh failed: ${errorMessage(err)}`);
+      }
+    }, 60 * 60 * 1000);
+  }
+
+  getJWKS() {
+    return this.jwks;
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.timer);
+  }
+
+  private createJWKS() {
+    return createRemoteJWKSet(
+      new URL(`${config.keycloak.issuer}/protocol/openid-connect/certs`),
+    );
+  }
+}
+
+
+src/services/keycloak-client.spec.ts
+------------------------------------
+import { KeycloakClient } from './keycloak-client';
+
+describe('KeycloakClient', () => {
+  let client: KeycloakClient;
+
+  beforeEach(() => {
+    client = new KeycloakClient();
+  });
+
+  it('should be instantiable', () => {
+    expect(client).toBeDefined();
+  });
+});
+
+
+src/services/keycloak-client.ts
+-------------------------------
+import { Injectable } from '@nestjs/common';
+import axios, { AxiosError } from 'axios';
+import { config } from '../config/config';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+import { TokenSet } from '../types/keycloak';
+
+const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as const;
+
+@Injectable()
+export class KeycloakClient {
+  private readonly tokenEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/token`;
+  private readonly revokeEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
+
+  private baseParams(): Record<string, string> {
+    return {
+      client_id: config.keycloak.clientId,
+      client_secret: config.keycloak.clientSecret,
+    };
+  }
+
+  async exchangeCode(code: string, codeVerifier: string): Promise<TokenSet> {
+    const { data } = await axios.post<TokenSet>(
+      this.tokenEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        grant_type: 'authorization_code',
+        redirect_uri: config.keycloak.redirectUri,
+        code,
+        code_verifier: codeVerifier,
+      }),
+      { headers: FORM_HEADERS },
+    );
+    return data;
+  }
+
+  async refreshTokens(refreshToken: string): Promise<TokenSet> {
+    try {
+      const { data } = await axios.post<TokenSet>(
+        this.tokenEndpoint,
+        new URLSearchParams({
+          ...this.baseParams(),
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        { headers: FORM_HEADERS },
+      );
+      return data;
+    } catch (err: unknown) {
+      const error = err as AxiosError<{ error?: string }>;
+      const status = error.response?.status;
+      const kcError = error.response?.data?.error;
+
+      if (status === 400 && kcError === 'invalid_grant') {
+        throw err;
+      }
+
+      Logger.error('KeycloakClient', `Refresh failed: ${status} ${kcError || errorMessage(err)}`);
+      throw err;
+    }
+  }
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    try {
+      await axios.post(
+        this.revokeEndpoint,
+        new URLSearchParams({
+          ...this.baseParams(),
+          token: refreshToken,
+          token_type_hint: 'refresh_token',
+        }),
+        { headers: FORM_HEADERS },
+      );
+    } catch (err: unknown) {
+      Logger.warn('KeycloakClient', `Revoke failed: ${errorMessage(err)}`);
+    }
+  }
+}
+
+
+src/services/redis.service.ts
+-----------------------------
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { createClient, RedisClientType } from 'redis';
+import { config } from '../config/config';
+import { Logger } from '../shared/logger';
+
+const USER_SESSIONS_PREFIX = 'user_sessions';
+
+@Injectable()
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  public readonly client: RedisClientType;
+
+  constructor() {
+    this.client = createClient({
+      url: config.redis.url,
+      password: config.redis.password,
+    });
+
+    this.client.on('error', (err) => Logger.error('Redis', err.message));
+    this.client.on('connect', () => Logger.info('Redis', 'Connected'));
+  }
+
+  async onModuleInit() {
+    await this.client.connect();
+  }
+
+  async onModuleDestroy() {
+    await this.client.disconnect();
+  }
+
+  async addUserSession(userId: string, sessionId: string): Promise<void> {
+    await this.client.sAdd(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
+    await this.client.expire(`${USER_SESSIONS_PREFIX}:${userId}`, config.session.ttl);
+  }
+
+  async removeUserSession(userId: string, sessionId: string): Promise<void> {
+    await this.client.sRem(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
+  }
+
+  async getUserSessions(userId: string): Promise<string[]> {
+    return this.client.sMembers(`${USER_SESSIONS_PREFIX}:${userId}`);
+  }
+
+  async deleteUserSessions(userId: string): Promise<void> {
+    const sessionIds = await this.getUserSessions(userId);
+    for (const sid of sessionIds) {
+      await this.client.del(`${config.session.prefix}${sid}`);
+    }
+    await this.client.del(`${USER_SESSIONS_PREFIX}:${userId}`);
+  }
+
+  async refreshUserSessionTtl(userId: string): Promise<void> {
+    await this.client.expire(`${USER_SESSIONS_PREFIX}:${userId}`, config.session.ttl);
+  }
+
+  async refreshSessionStoreTtl(sessionId: string): Promise<void> {
+    await this.client.expire(`${config.session.prefix}${sessionId}`, config.session.ttl);
+  }
+}
+
+
+src/filters/http-exception.filter.ts
+------------------------------------
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { Logger } from '../shared/logger';
+
+@Catch()
+export class HttpExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const res = ctx.getResponse<Response>();
+    const req = ctx.getRequest<Request>();
+
+    const status = exception instanceof HttpException
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    let message: string | string[] = 'Internal server error';
+    if (exception instanceof HttpException) {
+      const resp = exception.getResponse();
+      if (typeof resp === 'string') {
+        message = resp;
+      } else if (resp && typeof resp === 'object' && 'message' in resp) {
+        message = (resp as { message?: string | string[] }).message || 'Error';
+      }
+    }
+
+    Logger.error('Filter', `${req.method} ${req.url} → ${status}`, {
+      error: exception instanceof Error ? exception.message : String(exception),
+    });
+
+    res.status(status).json({
+      statusCode: status,
+      message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+
+src/interceptors/session-context.interceptor.ts
+-----------------------------------------------
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { requestContext } from '../shared/request-context';
+
+@Injectable()
+export class SessionContextInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const session = context.switchToHttp().getRequest().session;
+
+    if (session?.accessToken) {
+      return requestContext.run({ session }, () => next.handle());
+    }
+
+    return next.handle();
+  }
+}
+
+
+src/middleware/csrf.middleware.ts
+---------------------------------
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import * as crypto from 'crypto';
+import { config } from '../config/config';
+
+@Injectable()
+export class CsrfMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction): void {
+    if (!req.cookies['XSRF-TOKEN']) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const isProd = config.nodeEnv === 'production';
+
+      res.cookie('XSRF-TOKEN', token, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'strict',
+        path: '/',
+      });
+
+      if (req.session) {
+        req.session.csrfToken = token;
+        req.session.save(() => next());
+        return;
+      }
+    }
+    next();
+  }
+}
+
+
+src/middleware/security.middleware.spec.ts
+------------------------------------------
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { SecurityMiddleware } from './security.middleware';
+import { BffSession } from '../types/session';
+
+function makeToken(expSecondsFromNow = 3600): string {
+  const exp = Math.floor(Date.now() / 1000) + expSecondsFromNow;
+  const payload = Buffer.from(JSON.stringify({ exp })).toString('base64url');
+  return `header.${payload}.sig`;
+}
+
+describe('SecurityMiddleware', () => {
+  const middleware = new SecurityMiddleware();
+
+  function createReq(path: string, method: string, opts?: {
+    cookies?: Record<string, string>;
+    headers?: Record<string, string>;
+    session?: Partial<BffSession>;
+  }) {
+    return {
+      path,
+      method,
+      cookies: opts?.cookies || {},
+      headers: opts?.headers || {},
+      session: opts?.session,
+    } as Parameters<typeof middleware.use>[0];
+  }
+
+  function run(middleware: SecurityMiddleware, req: Parameters<typeof middleware.use>[0]): { error?: Error; nexted: boolean } {
+    let error: Error | undefined;
+    let nexted = false;
+    middleware.use(req, {} as Parameters<typeof middleware.use>[1], ((err?: Error) => {
+      if (err) error = err;
+      else nexted = true;
+    }) as Parameters<typeof middleware.use>[2]);
+    return { error, nexted };
+  }
+
+  describe('public routes', () => {
+    it('allows /login', () => {
+      const { nexted } = run(middleware, createReq('/login', 'GET'));
+      expect(nexted).toBe(true);
+    });
+
+    it('allows /health', () => {
+      const { nexted } = run(middleware, createReq('/health', 'GET'));
+      expect(nexted).toBe(true);
+    });
+
+    it('allows /health/readiness', () => {
+      const { nexted } = run(middleware, createReq('/health/readiness', 'GET'));
+      expect(nexted).toBe(true);
+    });
+  });
+
+  describe('deny by default', () => {
+    it('rejects unknown routes', () => {
+      const { error } = run(middleware, createReq('/unknown', 'GET'));
+      expect(error).toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('session check', () => {
+    it('rejects when no session', () => {
+      const { error } = run(middleware, createReq('/api/me', 'GET'));
+      expect(error).toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects when no accessToken', () => {
+      const { error } = run(middleware, createReq('/api/me', 'GET', { session: {} }));
+      expect(error).toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('allows when valid token', () => {
+      const { nexted } = run(middleware, createReq('/api/me', 'GET', {
+        session: { accessToken: makeToken() },
+      }));
+      expect(nexted).toBe(true);
+    });
+  });
+
+  describe('skipExpiryCheck', () => {
+    it('allows expired token on /api/auth/refresh', () => {
+      const { nexted } = run(middleware, createReq('/api/auth/refresh', 'POST', {
+        session: { accessToken: makeToken(-100), refreshToken: 'rt' },
+        headers: { 'x-csrf-token': 'abc' },
+        cookies: { 'XSRF-TOKEN': 'abc' },
+      }));
+      expect(nexted).toBe(true);
+    });
+  });
+
+  describe('CSRF check', () => {
+    it('rejects when CSRF header missing', () => {
+      const { error } = run(middleware, createReq('/api/auth/refresh', 'POST', {
+        session: { accessToken: makeToken() },
+        cookies: { 'XSRF-TOKEN': 'abc' },
+      }));
+      expect(error).toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects when CSRF cookie and header mismatch', () => {
+      const { error } = run(middleware, createReq('/api/auth/refresh', 'POST', {
+        session: { accessToken: makeToken() },
+        headers: { 'x-csrf-token': 'wrong' },
+        cookies: { 'XSRF-TOKEN': 'abc' },
+      }));
+      expect(error).toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('HTTP method matching', () => {
+    it('matches POST/PUT/DELETE/PATCH for /api/service/**', () => {
+      for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+        const { nexted } = run(middleware, createReq('/api/service/foo', method, {
+          session: { accessToken: makeToken() },
+          headers: { 'x-csrf-token': 'abc' },
+          cookies: { 'XSRF-TOKEN': 'abc' },
+        }));
+        expect(nexted).toBe(true);
+      }
+    });
+  });
+});
+
+
+src/middleware/security.middleware.ts
+-------------------------------------
+import { Injectable, NestMiddleware, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import { decodeJwt } from 'jose';
+import { RouteRule, ROUTE_RULES } from '../config/routes';
+import { Logger } from '../shared/logger';
+import { KeycloakJwtPayload } from '../types/keycloak';
+
+function matchPath(pattern: string, path: string): boolean {
+  if (pattern === path) return true;
+  const pp = pattern.split('/').filter(Boolean);
+  const tp = path.split('/').filter(Boolean);
+  let pi = 0;
+  let ti = 0;
+  while (pi < pp.length && ti < tp.length) {
+    if (pp[pi] === '**') return true;
+    if (pp[pi] === tp[ti]) { pi++; ti++; continue; }
+    return false;
+  }
+  return pi === pp.length && ti === tp.length;
+}
+
+function matchRule(path: string, method: string): RouteRule | undefined {
+  return ROUTE_RULES.find((rule) => {
+    if (!matchPath(rule.pattern, path)) return false;
+    if (rule.method) {
+      const methods = Array.isArray(rule.method) ? rule.method : [rule.method];
+      if (!methods.includes(method)) return false;
+    }
+    return true;
+  });
+}
+
+@Injectable()
+export class SecurityMiddleware implements NestMiddleware {
+  use(req: Request, _res: Response, next: NextFunction): void {
+    const rule = matchRule(req.path, req.method);
+
+    if (!rule) {
+      Logger.warn('Security', 'No rule — denied', { path: req.path, method: req.method });
+      next(new ForbiddenException('Route not configured'));
+      return;
+    }
+
+    if (rule.public) { next(); return; }
+
+    const { session } = req;
+
+    // Session check
+    if (rule.session) {
+      if (!session?.accessToken) {
+        next(new UnauthorizedException('No session'));
+        return;
+      }
+
+      if (!rule.skipExpiryCheck) {
+        try {
+          const payload = decodeJwt(session.accessToken);
+          if (payload?.exp) {
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp < now + 30) {
+              next(new UnauthorizedException('Token expired — refresh first'));
+              return;
+            }
+          }
+        } catch {
+          next(new UnauthorizedException('Invalid token'));
+          return;
+        }
+      }
+    }
+
+    // CSRF check
+    if (rule.csrf) {
+      const cookie = req.cookies?.['XSRF-TOKEN'];
+      const header = req.headers['x-csrf-token'];
+      if (!cookie || !header || cookie !== header) {
+        next(new ForbiddenException('Invalid CSRF token'));
+        return;
+      }
+      if (session?.csrfToken && session.csrfToken !== cookie) {
+        next(new ForbiddenException('CSRF token mismatch'));
+        return;
+      }
+    }
+
+    // Roles check
+    if (rule.roles?.length) {
+      if (!session?.accessToken) {
+        next(new ForbiddenException('No session'));
+        return;
+      }
+
+      const payload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
+      const source = rule.roleSource || 'realm';
+      const userRoles: string[] =
+        source === 'realm'
+          ? payload?.realm_access?.roles || []
+          : payload?.resource_access?.[source]?.roles || [];
+
+      const mode = rule.roleMatch || 'any';
+      const ok = mode === 'all'
+        ? rule.roles.every((r) => userRoles.includes(r))
+        : rule.roles.some((r) => userRoles.includes(r));
+
+      if (!ok) {
+        Logger.warn('Security', 'Insufficient roles', {
+          required: rule.roles.join(','),
+          actual: userRoles.join(','),
+        });
+        next(new ForbiddenException('Insufficient roles'));
+        return;
+      }
+    }
+
+    next();
+  }
+}
+
+
+src/types/keycloak.d.ts
+-----------------------
+export interface TokenSet {
+  access_token: string;
+  refresh_token: string;
+  id_token?: string;
+}
+
+export interface KeycloakJwtPayload {
+  sub?: string;
+  exp?: number;
+  jti?: string;
+  email?: string;
+  preferred_username?: string;
+  name?: string;
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, { roles?: string[] }>;
+}
+
+export interface UserInfo {
+  sub: string;
+  email?: string;
+  preferred_username?: string;
+  name?: string;
+}
+
+
+src/types/session.d.ts
+----------------------
+import { Session, SessionData } from 'express-session';
+
+declare module 'express-session' {
+  interface SessionData {
+    oauth?: { state: string; codeVerifier: string };
+    accessToken?: string;
+    refreshToken?: string;
+    idToken?: string;
+    userInfo?: {
+      sub: string;
+      email?: string;
+      preferred_username?: string;
+      name?: string;
+    };
+    csrfToken?: string;
+  }
+}
+
+export type BffSession = Session & Partial<SessionData>;
+
+
+src/dto/callback.dto.ts
+-----------------------
+import { IsString, IsOptional } from 'class-validator';
+
+export class CallbackQueryDto {
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  error?: string;
+}
+
+
+src/config/config.ts
+--------------------
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret || sessionSecret.length < 32) {
+  throw new Error(
+    'SESSION_SECRET must be >= 32 chars. Generate: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+}
+
+const DEFAULT_FRONTEND = 'http://localhost:8082';
+
+export const config = {
+  nodeEnv: process.env.NODE_ENV || 'development',
+  port: parseInt(process.env.PORT || '3000', 10),
+  frontendUrl: process.env.FRONTEND_URL || DEFAULT_FRONTEND,
+  protectedServiceUrl: process.env.PROTECTED_SERVICE_URL || 'http://protected-service:8080',
+  corsOrigins: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
+    : [process.env.FRONTEND_URL || DEFAULT_FRONTEND],
+  session: {
+    secret: sessionSecret,
+    prefix: process.env.SESSION_PREFIX || 'sess:',
+    ttl: parseInt(process.env.SESSION_TTL || '86400', 10),
+  },
+  keycloak: {
+    issuer: process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'bff-client',
+    clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || '',
+    redirectUri: process.env.KEYCLOAK_REDIRECT_URI || 'http://localhost:3000/callback',
+  },
+  redis: {
+    url: `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`,
+    password: process.env.REDIS_PASSWORD || undefined,
+  },
+} as const;
+
+
+src/config/routes.ts
+--------------------
+export interface RouteRule {
+  pattern: string;
+  method?: string | string[];
+  session?: boolean;
+  csrf?: boolean;
+  roles?: string[];
+  roleMatch?: 'any' | 'all';
+  roleSource?: string;
+  public?: boolean;
+  skipExpiryCheck?: boolean;
+}
+
+/**
+ * Rules checked top-to-bottom, first match wins.
+ * Unmatched routes → 403 (deny-by-default).
+ */
+export const ROUTE_RULES: RouteRule[] = [
+  // Public
+  { pattern: '/login', public: true },
+  { pattern: '/callback', public: true },
+  { pattern: '/health', public: true },
+  { pattern: '/health/**', public: true },
+  { pattern: '/api/auth/backchannel-logout', public: true },
+
+  // Auth — refresh skips expiry check (its whole purpose is to refresh an expiring token)
+  { pattern: '/api/me', session: true },
+  { pattern: '/api/auth/refresh', session: true, csrf: true, skipExpiryCheck: true },
+
+  // Proxy: mutations need CSRF
+  { pattern: '/api/service/**', method: ['POST', 'PUT', 'DELETE', 'PATCH'], session: true, csrf: true },
+  { pattern: '/api/service/**', session: true },
+
+  // Logout: session + CSRF
+  { pattern: '/logout', session: true, csrf: true },
+];
+
+
+src/shared/logger.ts
+--------------------
+import { config } from '../config/config';
+
+const RESET = '\x1b[0m';
+const GRAY = '\x1b[90m';
+const GREEN = '\x1b[32m';
+const YELLOW = '\x1b[33m';
+const RED = '\x1b[31m';
+const FIELD = '\x1b[38;5;250m';
+
+const LEVEL_COLOR: Record<string, string> = {
+  INFO: GREEN,
+  WARN: YELLOW,
+  ERROR: RED,
+  DEBUG: GRAY,
+};
+
+type LogField = string | number | boolean | null | undefined;
+export type LogFields = Record<string, LogField>;
+
+function timestamp(): string {
+  return new Date().toISOString();
+}
+
+function maskPII(fields?: LogFields): LogFields | undefined {
+  if (!fields) return undefined;
+  const masked = { ...fields };
+  for (const key of Object.keys(masked)) {
+    if (['email', 'preferred_username', 'user'].includes(key) && typeof masked[key] === 'string') {
+      masked[key] = '***';
+    }
+  }
+  return masked;
+}
+
+function formatFields(fields?: LogFields): string {
+  if (!fields) return '';
+  return ' ' + Object.entries(fields).map(([k, v]) => `${FIELD}${k}=${v}${RESET}`).join(' ');
+}
+
+function log(service: string, level: string, message: string, fields?: LogFields) {
+  const output = level === 'ERROR' ? console.error : console.log;
+  const masked = maskPII(fields);
+
+  if (config.nodeEnv === 'production') {
+    const entry: { timestamp: string; level: string; service: string; message: string; fields?: LogFields } = {
+      timestamp: timestamp(), level, service, message,
+    };
+    if (masked) entry.fields = masked;
+    output(JSON.stringify(entry));
+  } else {
+    const ts = GRAY + timestamp() + RESET;
+    const lvl = (LEVEL_COLOR[level] || RESET) + `[${level}]` + RESET;
+    output(`${ts} [${service}] ${lvl} ${message}${formatFields(masked)}`);
+  }
+}
+
+export const Logger = {
+  info: (svc: string, msg: string, f?: LogFields) => log(svc, 'INFO', msg, f),
+  warn: (svc: string, msg: string, f?: LogFields) => log(svc, 'WARN', msg, f),
+  error: (svc: string, msg: string, f?: LogFields) => log(svc, 'ERROR', msg, f),
+  debug: (svc: string, msg: string, f?: LogFields) => log(svc, 'DEBUG', msg, f),
+};
+
+
+src/shared/request-context.spec.ts
+----------------------------------
+import { requestContext } from './request-context';
+import { BffSession } from '../types/session';
+
+describe('requestContext', () => {
+  it('should store and retrieve session', async () => {
+    const mockSession = { accessToken: 'test-token' } as BffSession;
+    let captured: ReturnType<typeof requestContext.getStore>;
+
+    await requestContext.run({ session: mockSession }, () => {
+      captured = requestContext.getStore();
+    });
+
+    expect(captured?.session?.accessToken).toBe('test-token');
+  });
+
+  it('should return undefined outside of context', () => {
+    expect(requestContext.getStore()).toBeUndefined();
+  });
+});
+
+
+src/shared/request-context.ts
+-----------------------------
+import { AsyncLocalStorage } from 'async_hooks';
+import { BffSession } from '../types/session';
+
+export interface RequestCtx {
+  session: BffSession;
+}
+
+export const requestContext = new AsyncLocalStorage<RequestCtx>();
+
+
+src/shared/token-refresh-lock.ts
+--------------------------------
+const refreshPromises = new Map<string, Promise<void>>();
+
+export function isRefreshing(sessionId: string): Promise<void> | undefined {
+  return refreshPromises.get(sessionId);
+}
+
+export function startRefresh(sessionId: string): { done: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const done = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  refreshPromises.set(sessionId, done);
+  return {
+    done,
+    release: () => {
+      release();
+      refreshPromises.delete(sessionId);
+    },
+  };
+}
+
+
+src/shared/utils.ts
+-------------------
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'unknown';
+}
+
+
+src/controllers/auth.controller.ts
+----------------------------------
+import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { AuthService } from '../services/auth.service';
+import { KeycloakClient } from '../services/keycloak-client';
+import { config } from '../config/config';
+import { CallbackQueryDto } from '../dto/callback.dto';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+
+const SESSION_COOKIE_NAME = 'connect.sid';
+
+@Controller()
+export class AuthController {
+  constructor(
+    private authService: AuthService,
+    private keycloak: KeycloakClient,
+  ) {}
+
+  @Get('login')
+  async login(@Req() req: Request, @Res() res: Response) {
+    const url = this.authService.buildAuthorizationUrl(req.session);
+    res.redirect(url);
+  }
+
+  @Get('callback')
+  async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
+    const { session } = req;
+
+    if (query.error) {
+      Logger.warn('Auth', `OAuth error: ${query.error}`);
+      res.redirect(`${config.frontendUrl}/login?error=${query.error}`);
+      return;
+    }
+
+    if (!query.code || !query.state) {
+      res.redirect(`${config.frontendUrl}/login?error=missing_params`);
+      return;
+    }
+
+    try {
+      const oldCsrf = session.csrfToken;
+
+      await new Promise<void>((resolve, reject) => {
+        session.regenerate((err: Error | null) => (err ? reject(err) : resolve()));
+      });
+
+      if (oldCsrf) session.csrfToken = oldCsrf;
+
+      await this.authService.handleCallback(query.code, query.state, session);
+
+      session.save((err: Error | null) => {
+        if (err) {
+          Logger.error('Auth', `Session save: ${err.message}`);
+          res.redirect(`${config.frontendUrl}/login?error=session_save_failed`);
+          return;
+        }
+        Logger.info('Auth', 'Login complete', {
+          user: session.userInfo?.preferred_username || session.userInfo?.email || '?',
+        });
+        res.redirect(`${config.frontendUrl}/`);
+      });
+    } catch (err: unknown) {
+      Logger.error('Auth', `Callback error: ${errorMessage(err)}`);
+      res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
+    }
+  }
+
+  @Get('api/me')
+  me(@Req() req: Request) {
+    return { user: req.session.userInfo };
+  }
+
+  @Post('api/auth/refresh')
+  async refresh(@Req() req: Request, @Res() res: Response) {
+    try {
+      res.json(await this.authService.refreshTokens(req.session));
+    } catch (err: unknown) {
+      Logger.warn('Auth', `Refresh failed: ${errorMessage(err)}`);
+      res.status(401).json({ error: 'Token refresh failed' });
+    }
+  }
+
+  @Post('logout')
+  async logout(@Req() req: Request, @Res() res: Response) {
+    const { session } = req;
+    const { idToken, refreshToken, userInfo } = session;
+    const userId = userInfo?.sub;
+
+    if (refreshToken) {
+      await this.keycloak.revokeRefreshToken(refreshToken);
+    }
+
+    if (userId && session.id) {
+      await this.authService.unregisterSession(userId, session.id).catch((err: unknown) => {
+        Logger.warn('Auth', `Unregister session failed: ${errorMessage(err)}`);
+      });
+    }
+
+    session.destroy((err: Error | null) => {
+      if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      res.clearCookie('XSRF-TOKEN', { path: '/' });
+      res.redirect(idToken ? this.authService.getLogoutUrl(idToken) : '/login');
+    });
+  }
+}
+
+
+src/controllers/backchannel.controller.ts
+-----------------------------------------
+import { Controller, Post, Req, Res, Header } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { jwtVerify } from 'jose';
+import { config } from '../config/config';
+import { JwksService } from '../services/jwks.service';
+import { RedisService } from '../services/redis.service';
+import { AuthService } from '../services/auth.service';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+
+@Controller()
+export class BackchannelController {
+  constructor(
+    private jwksService: JwksService,
+    private redisService: RedisService,
+    private authService: AuthService,
+  ) {}
+
+  @Post('api/auth/backchannel-logout')
+  @Header('Cache-Control', 'no-store')
+  async backchannelLogout(@Req() req: Request, @Res() res: Response) {
+    const logoutToken = req.body?.logout_token;
+    if (!logoutToken) {
+      res.status(400).send('Missing logout_token');
+      return;
+    }
+
+    try {
+      const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
+        issuer: config.keycloak.issuer,
+        audience: config.keycloak.clientId,
+      });
+
+      const jti = payload.jti;
+      if (jti) {
+        const key = `replay:${jti}`;
+        const exists = await this.redisService.client.exists(key);
+        if (exists) {
+          Logger.warn('Auth', 'Backchannel logout replay', { jti });
+          res.status(401).send('Replay detected');
+          return;
+        }
+        const exp = payload.exp || Math.floor(Date.now() / 1000) + 300;
+        const ttl = Math.max(exp - Math.floor(Date.now() / 1000) + 300, 60);
+        await this.redisService.client.set(key, '1', { EX: ttl });
+      }
+
+      if (!payload.sub) {
+        res.status(400).send('Missing sub claim');
+        return;
+      }
+
+      Logger.info('Auth', 'Backchannel logout', { sub: payload.sub });
+      await this.authService.destroyUserSessions(payload.sub);
+      res.status(200).send('OK');
+    } catch (err: unknown) {
+      Logger.error('Auth', `Backchannel logout failed: ${errorMessage(err)}`);
+      res.status(401).send('Invalid logout token');
+    }
+  }
+}
+
+
+src/controllers/health.controller.ts
+------------------------------------
+import { Controller, Get } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
+import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from '@nestjs/terminus';
+import { RedisService } from '../services/redis.service';
+
+@SkipThrottle()
+@Controller('health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private redis: RedisService,
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  check(): Promise<HealthCheckResult> {
+    return this.health.check([]);
+  }
+
+  @Get('readiness')
+  @HealthCheck()
+  readiness(): Promise<HealthCheckResult> {
+    return this.health.check([() => this.checkRedis()]);
+  }
+
+  private checkRedis(): Promise<HealthIndicatorResult> {
+    return this.redis.client.ping()
+      .then((pong) => ({ redis: { status: pong === 'PONG' ? 'up' as const : 'down' as const } }))
+      .catch(() => ({ redis: { status: 'down' as const } }));
+  }
+}
+
+
+src/controllers/proxy.controller.ts
+-----------------------------------
+import { Controller, Get, Post, Put, Delete, Patch, Req, Res, Param } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { HttpClient } from '../services/http-client';
+import { config } from '../config/config';
+import { Logger } from '../shared/logger';
+import { errorMessage } from '../shared/utils';
+
+type HttpMethod = 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+@Controller('api/service')
+export class ProxyController {
+  constructor(private http: HttpClient) {}
+
+  @Get()
+  async getRoot(@Res() res: Response) {
+    return this.proxyGet('', res);
+  }
+
+  @Get('*')
+  async get(@Param('0') path: string, @Res() res: Response) {
+    return this.proxyGet(path, res);
+  }
+
+  @Post('*')
+  async post(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+    return this.proxyMutate(path, req, res, 'POST');
+  }
+
+  @Put('*')
+  async put(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+    return this.proxyMutate(path, req, res, 'PUT');
+  }
+
+  @Delete('*')
+  async delete(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+    return this.proxyMutate(path, req, res, 'DELETE');
+  }
+
+  @Patch('*')
+  async patch(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+    return this.proxyMutate(path, req, res, 'PATCH');
+  }
+
+  private async proxyGet(path: string, res: Response) {
+    try {
+      res.json(await this.http.get<any, any>(`${config.protectedServiceUrl}/${path}`));
+    } catch (err: unknown) {
+      this.proxyError(res, err, 'GET');
+    }
+  }
+
+  private async proxyMutate(path: string, req: Request, res: Response, method: HttpMethod) {
+    const url = `${config.protectedServiceUrl}/${path}`;
+    try {
+      const methodFn: Record<HttpMethod, () => Promise<any>> = {
+        POST: () => this.http.post(url, req.body),
+        PUT: () => this.http.put(url, req.body),
+        DELETE: () => this.http.delete(url),
+        PATCH: () => this.http.patch(url, req.body),
+      };
+      const result = await methodFn[method]();
+      res.json(result);
+    } catch (err: unknown) {
+      this.proxyError(res, err, method);
+    }
+  }
+
+  private proxyError(res: Response, err: unknown, method: string) {
+    const msg = errorMessage(err);
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    Logger.error('Proxy', `${method} failed: ${msg}`);
+    res.status(status || 500).json({ error: 'Upstream request failed' });
+  }
+}
+
+
