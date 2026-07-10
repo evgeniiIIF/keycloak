@@ -6,6 +6,7 @@ import { config } from '../config/config';
 import { CallbackQueryDto } from '../dto/callback.dto';
 import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
+import { Public, RequireSession, RequireCsrf } from '../decorators/auth.decorator';
 
 const SESSION_COOKIE_NAME = 'connect.sid';
 
@@ -16,12 +17,14 @@ export class AuthController {
     private keycloak: KeycloakClient,
   ) {}
 
+  @Public()
   @Get('login')
   async login(@Req() req: Request, @Res() res: Response) {
     const url = this.authService.buildAuthorizationUrl(req.session);
     res.redirect(url);
   }
 
+  @Public()
   @Get('callback')
   async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
     const { session } = req;
@@ -65,11 +68,14 @@ export class AuthController {
     }
   }
 
+  @RequireSession()
   @Get('api/me')
   me(@Req() req: Request) {
     return { user: req.session.userInfo };
   }
 
+  @RequireSession()
+  @RequireCsrf()
   @Post('logout')
   async logout(@Req() req: Request, @Res() res: Response) {
     const { session } = req;
@@ -90,7 +96,8 @@ export class AuthController {
       if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
       res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
       res.clearCookie('XSRF-TOKEN', { path: '/' });
-      res.redirect(idToken ? this.authService.getLogoutUrl(idToken) : '/login');
+      const logoutUrl = idToken ? this.authService.getLogoutUrl(idToken) : '/login';
+      res.json({ logoutUrl });
     });
   }
 }
