@@ -4,7 +4,6 @@ import express from 'express';
 import { AppModule } from './app.module';
 import { config } from './config/config';
 import { RedisService } from './services/redis.service';
-import { SecurityMiddleware } from './middleware/security.middleware';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { Logger } from './shared/logger';
@@ -65,10 +64,6 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
-
-  // Security middleware (route-based guard)
-  const sec = app.get(SecurityMiddleware);
-  app.use(sec.use.bind(sec));
 
   // Graceful shutdown
   app.enableShutdownHooks();
