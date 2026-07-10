@@ -4,6 +4,7 @@ import { TerminusModule } from '@nestjs/terminus';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 
+import { AuthGuard } from './guards/auth.guard';
 import { RedisService } from './services/redis.service';
 import { JwksService } from './services/jwks.service';
 import { KeycloakClient } from './services/keycloak-client';
@@ -30,6 +31,7 @@ import { SessionContextInterceptor } from './interceptors/session-context.interc
     AuthService,
     HttpClient,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
   ],
   exports: [RedisService],
