@@ -7,7 +7,9 @@ import { RedisService } from '../services/redis.service';
 import { AuthService } from '../services/auth.service';
 import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
+import { Public } from '../decorators/auth.decorator';
 
+@Public()
 @Controller()
 export class BackchannelController {
   constructor(
