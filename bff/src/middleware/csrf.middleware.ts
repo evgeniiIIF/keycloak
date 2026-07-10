@@ -16,12 +16,6 @@ export class CsrfMiddleware implements NestMiddleware {
         sameSite: 'strict',
         path: '/',
       });
-
-      if (req.session) {
-        req.session.csrfToken = token;
-        req.session.save(() => next());
-        return;
-      }
     }
     next();
   }
