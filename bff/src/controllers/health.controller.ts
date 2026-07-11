@@ -1,11 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
 import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from '@nestjs/terminus';
 import { RedisService } from '../services/redis.service';
 import { Public } from '../decorators/auth.decorator';
 
 @Public()
-@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(

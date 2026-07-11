@@ -17,7 +17,11 @@ export class AuthService {
 
   buildAuthorizationUrl(session: BffSession): string {
     const codeVerifier = crypto.randomBytes(32).toString('hex');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest().toString('base64url');
+    const codeChallenge = crypto
+      .createHash('sha256')
+      .update(codeVerifier)
+      .digest()
+      .toString('base64url');
     const state = crypto.randomBytes(16).toString('hex');
 
     session.oauth = { state, codeVerifier };
@@ -32,7 +36,7 @@ export class AuthService {
       code_challenge_method: 'S256',
     });
 
-    return `${config.keycloak.issuer}/protocol/openid-connect/auth?${params}`;
+    return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
   }
 
   async handleCallback(code: string, state: string, session: BffSession): Promise<void> {
@@ -41,21 +45,10 @@ export class AuthService {
 
     const tokenSet = await this.keycloak.exchangeCode(code, session.oauth.codeVerifier);
 
-    if (!tokenSet.id_token) throw new UnauthorizedException('Missing id_token');
-    const idPayload = decodeJwt(tokenSet.id_token) as KeycloakJwtPayload;
-
     delete session.oauth;
-    session.accessToken = tokenSet.access_token;
-    session.refreshToken = tokenSet.refresh_token;
-    session.idToken = tokenSet.id_token;
-    session.userInfo = {
-      sub: idPayload.sub!,
-      email: idPayload.email,
-      preferred_username: idPayload.preferred_username,
-      name: idPayload.name,
-    };
+    this.applyTokenSet(session, tokenSet);
 
-    await this.redis.addUserSession(session.userInfo.sub, session.id!);
+    await this.redis.addUserSession(session.userInfo!.sub, session.id!);
   }
 
   async refreshTokens(session: BffSession): Promise<{ accessToken: string; refreshToken: string }> {
@@ -63,9 +56,7 @@ export class AuthService {
 
     const tokenSet = await this.keycloak.refreshTokens(session.refreshToken);
 
-    session.accessToken = tokenSet.access_token;
-    session.refreshToken = tokenSet.refresh_token;
-    if (tokenSet.id_token) session.idToken = tokenSet.id_token;
+    this.applyTokenSet(session, tokenSet);
 
     if (session.userInfo?.sub) {
       await this.redis.refreshUserSessionTtl(session.userInfo.sub);
@@ -74,13 +65,13 @@ export class AuthService {
       await this.redis.refreshSessionStoreTtl(session.id);
     }
 
-    return { accessToken: tokenSet.access_token, refreshToken: tokenSet.refresh_token };
+    return { accessToken: session.accessToken!, refreshToken: session.refreshToken! };
   }
 
   getLogoutUrl(idToken: string): string {
-    const url = new URL(`${config.keycloak.issuer}/protocol/openid-connect/logout`);
+    const url = new URL(`${config.keycloak.publicIssuer}/protocol/openid-connect/logout`);
     url.searchParams.append('id_token_hint', idToken);
-    url.searchParams.append('post_logout_redirect_uri', `${config.frontendUrl}/home`);
+    url.searchParams.append('post_logout_redirect_uri', config.keycloak.logoutRedirectUri);
     return url.toString();
   }
 
@@ -94,5 +85,24 @@ export class AuthService {
 
     await this.redis.deleteUserSessions(userId);
     Logger.info('AuthService', `Destroyed ${sessionIds.length} sessions for ${userId}`);
+  }
+
+  private applyTokenSet(
+    session: BffSession,
+    tokenSet: { access_token: string; refresh_token: string; id_token?: string },
+  ): void {
+    session.accessToken = tokenSet.access_token;
+    session.refreshToken = tokenSet.refresh_token;
+
+    if (tokenSet.id_token) {
+      session.idToken = tokenSet.id_token;
+      const idPayload = decodeJwt(tokenSet.id_token) as KeycloakJwtPayload;
+      session.userInfo = {
+        sub: idPayload.sub!,
+        email: idPayload.email,
+        preferred_username: idPayload.preferred_username,
+        name: idPayload.name,
+      };
+    }
   }
 }

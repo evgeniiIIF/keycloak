@@ -2,19 +2,23 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { requestContext } from '../shared/request-context';
 import { AuthService } from './auth.service';
+import { TokenRefreshLock } from '../shared/token-refresh-lock';
 import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
-import { isRefreshing, startRefresh } from '../shared/token-refresh-lock';
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _retryCount?: number;
 }
 
 @Injectable()
 export class HttpClient {
   private readonly instance: AxiosInstance;
 
-  constructor(private authService: AuthService) {
+  constructor(
+    private authService: AuthService,
+    private refreshLock: TokenRefreshLock,
+  ) {
     this.instance = axios.create();
     this.instance.interceptors.request.use((cfg) => this.onRequest(cfg));
     this.instance.interceptors.response.use(
@@ -50,8 +54,8 @@ export class HttpClient {
 
   private async onRequest(cfg: InternalAxiosRequestConfig) {
     const ctx = requestContext.getStore();
-    if (ctx?.session?.accessToken) {
-      cfg.headers.Authorization = `Bearer ${ctx.session.accessToken}`;
+    if (ctx?.req?.session?.accessToken) {
+      cfg.headers.Authorization = `Bearer ${ctx.req.session.accessToken}`;
     }
     return cfg;
   }
@@ -68,7 +72,7 @@ export class HttpClient {
 
   private async handle401(error: AxiosError, reqCfg: RetryableConfig) {
     const ctx = requestContext.getStore();
-    const session = ctx?.session;
+    const session = ctx?.req?.session;
 
     if (!session?.refreshToken) throw error;
 
@@ -76,11 +80,16 @@ export class HttpClient {
     if (!sessionId) throw error;
 
     reqCfg._retry = true;
+    reqCfg._retryCount = (reqCfg._retryCount || 0) + 1;
 
-    const existingRefresh = isRefreshing(sessionId);
-    if (existingRefresh) {
+    if (reqCfg._retryCount > 2) {
+      throw error;
+    }
+
+    const acquired = await this.refreshLock.acquire(sessionId);
+    if (!acquired) {
       Logger.warn('HttpClient', '401 — another refresh in progress, waiting', { url: reqCfg.url });
-      await existingRefresh;
+      await this.refreshLock.waitAndRetry(sessionId);
 
       await new Promise<void>((resolve, reject) => {
         session.reload((err) => (err ? reject(err) : resolve()));
@@ -92,34 +101,40 @@ export class HttpClient {
 
     Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
 
-    const { release } = startRefresh(sessionId);
     try {
       await this.authService.refreshTokens(session);
+
+      await new Promise<void>((resolve, reject) => {
+        session.save((err) => (err ? reject(err) : resolve()));
+      });
 
       reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
       Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
 
       return this.instance(reqCfg);
     } catch (refreshErr: unknown) {
-      const err = refreshErr as AxiosError<{ error?: string; error_description?: string }>;
       const isInvalidGrant =
-        err.response?.status === 400 &&
-        err.response?.data?.error === 'invalid_grant';
+        refreshErr instanceof AxiosError &&
+        refreshErr.response?.status === 400 &&
+        refreshErr.response?.data?.error === 'invalid_grant';
 
       if (isInvalidGrant) {
-        // Уничтожаем сессию, чтобы не оставлять мусор
+        const data = (refreshErr as any).response?.data || {};
+        Logger.error('HttpClient', 'invalid_grant — session destroyed', {
+          status: String(refreshErr.response?.status),
+          error: data.error,
+          description: data.error_description || undefined,
+        });
         await new Promise<void>((resolve, reject) => {
           session.destroy((e) => (e ? reject(e) : resolve()));
         });
-
-        Logger.error('HttpClient', 'Refresh rejected — session destroyed');
         throw new UnauthorizedException('Session expired');
       }
 
       Logger.error('HttpClient', `Refresh failed: ${errorMessage(refreshErr)}`);
       throw refreshErr;
     } finally {
-      release();
+      await this.refreshLock.release(sessionId);
     }
   }
 }

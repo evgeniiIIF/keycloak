@@ -4,14 +4,12 @@ import express from 'express';
 import { AppModule } from './app.module';
 import { config } from './config/config';
 import { RedisService } from './services/redis.service';
-import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { Logger } from './shared/logger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const session = require('express-session');
+import session from 'express-session';
 import RedisStore from 'connect-redis';
 
 async function bootstrap() {
@@ -26,7 +24,8 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cookieParser());
 
-  // Body parsers (urlencoded needed for Keycloak backchannel logout)
+  // Body parsers
+  app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   // Validation
@@ -35,13 +34,14 @@ async function bootstrap() {
   // Global error handler
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const isProd = config.nodeEnv === 'production';
+  const isProd = config.isProduction;
 
   // Session with Redis store
   app.use(
     session({
       store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
       secret: config.session.secret,
+      name: config.session.cookieName,
       resave: false,
       saveUninitialized: false,
       rolling: true,
@@ -53,10 +53,6 @@ async function bootstrap() {
       },
     }),
   );
-
-  // Double-submit CSRF: set XSRF-TOKEN cookie on first visit
-  const csrf = app.get(CsrfMiddleware);
-  app.use(csrf.use.bind(csrf));
 
   // CORS
   app.enableCors({

@@ -10,7 +10,7 @@
 ### 2. Данные сессии в Redis (автоматически)
 - Ключ: `sess:<sessionId>`
 - Хранит: `connect-redis` автоматически при вызове `session.save()`
-- Содержит: `{ accessToken, refreshToken, idToken, userInfo, csrfToken, oauth }`
+- Содержит: `{ accessToken, refreshToken, idToken, userInfo, oauth }`
 
 ```typescript
 // src/main.ts:43-56 — единственная необходимая настройка

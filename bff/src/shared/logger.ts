@@ -41,7 +41,7 @@ function log(service: string, level: string, message: string, fields?: LogFields
   const output = level === 'ERROR' ? console.error : console.log;
   const masked = maskPII(fields);
 
-  if (config.nodeEnv === 'production') {
+  if (config.isProduction) {
     const entry: { timestamp: string; level: string; service: string; message: string; fields?: LogFields } = {
       timestamp: timestamp(), level, service, message,
     };
@@ -58,5 +58,4 @@ export const Logger = {
   info: (svc: string, msg: string, f?: LogFields) => log(svc, 'INFO', msg, f),
   warn: (svc: string, msg: string, f?: LogFields) => log(svc, 'WARN', msg, f),
   error: (svc: string, msg: string, f?: LogFields) => log(svc, 'ERROR', msg, f),
-  debug: (svc: string, msg: string, f?: LogFields) => log(svc, 'DEBUG', msg, f),
 };

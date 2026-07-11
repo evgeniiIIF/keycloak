@@ -12,7 +12,6 @@ declare module 'express-session' {
       preferred_username?: string;
       name?: string;
     };
-    csrfToken?: string;
   }
 }
 

@@ -29,9 +29,15 @@ export class BackchannelController {
 
     try {
       const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
-        issuer: config.keycloak.issuer,
+        issuer: config.keycloak.publicIssuer,
         audience: config.keycloak.clientId,
       });
+
+      const events = payload.events as Record<string, unknown> | undefined;
+      if (!events?.['http://schemas.openid.net/event/backchannel-logout']) {
+        res.status(400).send('Missing backchannel-logout event');
+        return;
+      }
 
       const jti = payload.jti;
       if (jti) {

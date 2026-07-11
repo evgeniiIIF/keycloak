@@ -14,10 +14,3 @@ export interface KeycloakJwtPayload {
   realm_access?: { roles?: string[] };
   resource_access?: Record<string, { roles?: string[] }>;
 }
-
-export interface UserInfo {
-  sub: string;
-  email?: string;
-  preferred_username?: string;
-  name?: string;
-}

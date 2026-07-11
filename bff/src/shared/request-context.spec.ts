@@ -1,16 +1,15 @@
 import { requestContext } from './request-context';
-import { BffSession } from '../types/session';
 
 describe('requestContext', () => {
-  it('should store and retrieve session', async () => {
-    const mockSession = { accessToken: 'test-token' } as BffSession;
+  it('should store and retrieve req', async () => {
+    const mockReq = { session: { accessToken: 'test-token' } } as any;
     let captured: ReturnType<typeof requestContext.getStore>;
 
-    await requestContext.run({ session: mockSession }, () => {
+    await requestContext.run({ req: mockReq }, () => {
       captured = requestContext.getStore();
     });
 
-    expect(captured?.session?.accessToken).toBe('test-token');
+    expect(captured?.req?.session?.accessToken).toBe('test-token');
   });
 
   it('should return undefined outside of context', () => {

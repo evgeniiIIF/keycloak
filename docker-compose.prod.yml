@@ -55,13 +55,13 @@ services:
       KEYCLOAK_REALM: ${KEYCLOAK_REALM}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM}
+      KEYCLOAK_PUBLIC_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER:-http://localhost:8080/realms/${KEYCLOAK_REALM}}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PROTECTED_SERVICE_URL: http://protected-service:8080
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8082}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8082}
-    extra_hosts:
-      - "localhost:host-gateway"
     depends_on:
       - keycloak
       - redis
@@ -77,6 +77,8 @@ services:
       - "8083:8080"
     environment:
       JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
     depends_on:
       - keycloak
     networks:

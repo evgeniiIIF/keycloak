@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { BffSession } from '../types/session';
+import { Request } from 'express';
 
 export interface RequestCtx {
-  session: BffSession;
+  req: Request;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestCtx>();

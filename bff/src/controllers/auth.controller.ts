@@ -8,8 +8,6 @@ import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
 import { Public, RequireSession, RequireCsrf } from '../decorators/auth.decorator';
 
-const SESSION_COOKIE_NAME = 'connect.sid';
-
 @Controller()
 export class AuthController {
   constructor(
@@ -27,8 +25,6 @@ export class AuthController {
   @Public()
   @Get('callback')
   async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
-    const { session } = req;
-
     if (query.error) {
       Logger.warn('Auth', `OAuth error: ${query.error}`);
       res.redirect(`${config.frontendUrl}/login?error=${query.error}`);
@@ -41,24 +37,24 @@ export class AuthController {
     }
 
     try {
-      const oldCsrf = session.csrfToken;
+      const pendingOAuth = req.session.oauth;
 
       await new Promise<void>((resolve, reject) => {
-        session.regenerate((err: Error | null) => (err ? reject(err) : resolve()));
+        req.session.regenerate((err: Error | null) => (err ? reject(err) : resolve()));
       });
 
-      if (oldCsrf) session.csrfToken = oldCsrf;
+      req.session.oauth = pendingOAuth;
 
-      await this.authService.handleCallback(query.code, query.state, session);
+      await this.authService.handleCallback(query.code, query.state, req.session);
 
-      session.save((err: Error | null) => {
+      req.session.save((err: Error | null) => {
         if (err) {
           Logger.error('Auth', `Session save: ${err.message}`);
           res.redirect(`${config.frontendUrl}/login?error=session_save_failed`);
           return;
         }
         Logger.info('Auth', 'Login complete', {
-          user: session.userInfo?.preferred_username || session.userInfo?.email || '?',
+          user: req.session.userInfo?.preferred_username || req.session.userInfo?.email || '?',
         });
         res.redirect(`${config.frontendUrl}/`);
       });
@@ -92,12 +88,20 @@ export class AuthController {
       });
     }
 
-    session.destroy((err: Error | null) => {
-      if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
-      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
-      res.clearCookie('XSRF-TOKEN', { path: '/' });
-      const logoutUrl = idToken ? this.authService.getLogoutUrl(idToken) : '/login';
-      res.json({ logoutUrl });
+    await new Promise<void>((resolve) => {
+      session.destroy((err: Error | null) => {
+        if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
+        resolve();
+      });
     });
+
+    res.clearCookie(config.session.cookieName, {
+      path: '/',
+      sameSite: 'lax',
+      secure: config.isProduction,
+    });
+    res.clearCookie('XSRF-TOKEN', { path: '/' });
+    const logoutUrl = idToken ? this.authService.getLogoutUrl(idToken) : '/login';
+    res.json({ logoutUrl });
   }
 }

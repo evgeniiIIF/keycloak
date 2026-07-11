@@ -5,3 +5,4 @@ process.env.KEYCLOAK_CLIENT_ID = 'bff-client';
 process.env.KEYCLOAK_CLIENT_SECRET = 'test-secret';
 process.env.REDIS_HOST = 'localhost';
 process.env.REDIS_PORT = '6379';
+process.env.KC_HOSTNAME = 'keycloak';

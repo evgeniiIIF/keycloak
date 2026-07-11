@@ -12,4 +12,12 @@ export class CallbackQueryDto {
   @IsOptional()
   @IsString()
   error?: string;
+
+  @IsOptional()
+  @IsString()
+  session_state?: string;
+
+  @IsOptional()
+  @IsString()
+  iss?: string;
 }

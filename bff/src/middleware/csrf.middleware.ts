@@ -8,7 +8,7 @@ export class CsrfMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     if (!req.cookies['XSRF-TOKEN']) {
       const token = crypto.randomBytes(32).toString('hex');
-      const isProd = config.nodeEnv === 'production';
+      const isProd = config.isProduction;
 
       res.cookie('XSRF-TOKEN', token, {
         httpOnly: false,

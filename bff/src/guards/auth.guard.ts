@@ -8,12 +8,13 @@ import {
 import { Reflector } from '@nestjs/core';
 import { decodeJwt } from 'jose';
 import { Request } from 'express';
+import crypto from 'crypto';
 import {
   IS_PUBLIC_KEY,
   REQUIRE_SESSION,
   REQUIRE_CSRF,
-  SKIP_EXPIRY_CHECK,
   ROLES_KEY,
+  RolesMeta,
 } from '../decorators/auth.decorator';
 import { KeycloakJwtPayload } from '../types/keycloak';
 
@@ -39,14 +40,12 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    const skipExpiryCheck = this.reflector.getAllAndOverride<boolean>(SKIP_EXPIRY_CHECK, [
+    const rolesMeta = this.reflector.getAllAndOverride<RolesMeta | undefined>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    const rolesMeta: any = this.reflector.getAllAndOverride(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+
+    let tokenPayload: KeycloakJwtPayload | undefined;
 
     // Session check
     if (requireSession) {
@@ -54,16 +53,10 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('No session');
       }
 
-      if (!skipExpiryCheck) {
-        try {
-          const payload = decodeJwt(session.accessToken);
-          const now = Math.floor(Date.now() / 1000);
-          if (payload?.exp && payload.exp < now + 30) {
-            throw new UnauthorizedException('Token expired');
-          }
-        } catch {
-          throw new UnauthorizedException('Invalid token');
-        }
+      try {
+        tokenPayload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
+      } catch {
+        throw new UnauthorizedException('Invalid token');
       }
     }
 
@@ -71,7 +64,14 @@ export class AuthGuard implements CanActivate {
     if (requireCsrf) {
       const cookie = cookies?.['XSRF-TOKEN'];
       const header = headers['x-csrf-token'];
-      if (!cookie || !header || cookie !== header) {
+      const cookieStr = typeof cookie === 'string' ? cookie : undefined;
+      const headerStr = typeof header === 'string' ? header : undefined;
+      if (
+        !cookieStr ||
+        !headerStr ||
+        cookieStr.length !== headerStr.length ||
+        !crypto.timingSafeEqual(Buffer.from(cookieStr), Buffer.from(headerStr))
+      ) {
         throw new ForbiddenException('Invalid CSRF token');
       }
     }
@@ -81,18 +81,26 @@ export class AuthGuard implements CanActivate {
       if (!session?.accessToken) {
         throw new ForbiddenException('No session');
       }
-      const payload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
+
+      if (!tokenPayload) {
+        try {
+          tokenPayload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
+        } catch {
+          throw new ForbiddenException('Invalid token');
+        }
+      }
+
       const source = rolesMeta.source || 'realm';
       const userRoles: string[] =
         source === 'realm'
-          ? payload?.realm_access?.roles || []
-          : payload?.resource_access?.[source]?.roles || [];
+          ? tokenPayload?.realm_access?.roles || []
+          : tokenPayload?.resource_access?.[source]?.roles || [];
 
       const mode = rolesMeta.mode || 'any';
       const ok =
         mode === 'all'
-          ? rolesMeta.roles.every((r: string) => userRoles.includes(r))
-          : rolesMeta.roles.some((r: string) => userRoles.includes(r));
+          ? rolesMeta.roles.every((r) => userRoles.includes(r))
+          : rolesMeta.roles.some((r) => userRoles.includes(r));
 
       if (!ok) {
         throw new ForbiddenException('Insufficient roles');

@@ -10,9 +10,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   public readonly client: RedisClientType;
 
   constructor() {
+    const useTls = config.redis.url.startsWith('rediss://');
+
     this.client = createClient({
       url: config.redis.url,
       password: config.redis.password,
+      socket: useTls ? { tls: true } : undefined,
     });
 
     this.client.on('error', (err) => Logger.error('Redis', err.message));
@@ -28,8 +31,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async addUserSession(userId: string, sessionId: string): Promise<void> {
-    await this.client.sAdd(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
-    await this.client.expire(`${USER_SESSIONS_PREFIX}:${userId}`, config.session.ttl);
+    const key = `${USER_SESSIONS_PREFIX}:${userId}`;
+    const pipeline = this.client.multi();
+    pipeline.sAdd(key, sessionId);
+    pipeline.expire(key, config.session.ttl);
+    await pipeline.exec();
   }
 
   async removeUserSession(userId: string, sessionId: string): Promise<void> {

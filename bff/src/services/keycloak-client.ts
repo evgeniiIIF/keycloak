@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { config } from '../config/config';
-import { Logger } from '../shared/logger';
-import { errorMessage } from '../shared/utils';
 import { TokenSet } from '../types/keycloak';
 
 const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as const;
@@ -35,44 +33,27 @@ export class KeycloakClient {
   }
 
   async refreshTokens(refreshToken: string): Promise<TokenSet> {
-    try {
-      const { data } = await axios.post<TokenSet>(
-        this.tokenEndpoint,
-        new URLSearchParams({
-          ...this.baseParams(),
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-        }),
-        { headers: FORM_HEADERS },
-      );
-      return data;
-    } catch (err: unknown) {
-      const error = err as AxiosError<{ error?: string }>;
-      const status = error.response?.status;
-      const kcError = error.response?.data?.error;
-
-      if (status === 400 && kcError === 'invalid_grant') {
-        throw err;
-      }
-
-      Logger.error('KeycloakClient', `Refresh failed: ${status} ${kcError || errorMessage(err)}`);
-      throw err;
-    }
+    const { data } = await axios.post<TokenSet>(
+      this.tokenEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      { headers: FORM_HEADERS },
+    );
+    return data;
   }
 
   async revokeRefreshToken(refreshToken: string): Promise<void> {
-    try {
-      await axios.post(
-        this.revokeEndpoint,
-        new URLSearchParams({
-          ...this.baseParams(),
-          token: refreshToken,
-          token_type_hint: 'refresh_token',
-        }),
-        { headers: FORM_HEADERS },
-      );
-    } catch (err: unknown) {
-      Logger.warn('KeycloakClient', `Revoke failed: ${errorMessage(err)}`);
-    }
+    await axios.post(
+      this.revokeEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        token: refreshToken,
+        token_type_hint: 'refresh_token',
+      }),
+      { headers: FORM_HEADERS },
+    );
   }
 }

@@ -5,12 +5,7 @@ import { requestContext } from '../shared/request-context';
 @Injectable()
 export class SessionContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const session = context.switchToHttp().getRequest().session;
-
-    if (session?.accessToken) {
-      return requestContext.run({ session }, () => next.handle());
-    }
-
-    return next.handle();
+    const req = context.switchToHttp().getRequest();
+    return requestContext.run({ req }, () => next.handle());
   }
 }

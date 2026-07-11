@@ -4,6 +4,21 @@ const { createRemoteJWKSet, jwtVerify } = require('jose');
 const app = express();
 const port = process.env.PORT || 8080;
 const JWKS_URL = process.env.JWKS_URL;
+const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER;
+const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID;
+
+if (!JWKS_URL) {
+  console.error('JWKS_URL environment variable is required');
+  process.exit(1);
+}
+if (!KEYCLOAK_ISSUER) {
+  console.error('KEYCLOAK_ISSUER environment variable is required');
+  process.exit(1);
+}
+if (!KEYCLOAK_CLIENT_ID) {
+  console.error('KEYCLOAK_CLIENT_ID environment variable is required');
+  process.exit(1);
+}
 
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
@@ -59,8 +74,8 @@ app.get('/', async (req, res) => {
 
   try {
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: process.env.KEYCLOAK_ISSUER || `http://keycloak:8080/realms/${process.env.KEYCLOAK_REALM || 'TestRealm'}`,
-      audience: process.env.KEYCLOAK_CLIENT_ID || 'protected-client',
+      issuer: KEYCLOAK_ISSUER,
+      audience: KEYCLOAK_CLIENT_ID,
     });
     log('INFO', `JWT verification OK`, {
       user: payload.preferred_username || payload.email || payload.sub,

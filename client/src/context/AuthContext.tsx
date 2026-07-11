@@ -4,7 +4,6 @@ import api from '../api/api';
 interface AuthContextType {
   authenticated: boolean;
   profile: any;
-  csrfToken: string | null;
   login: () => void;
   logout: () => Promise<void>;
   loading: boolean;
@@ -16,29 +15,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const checkAuth = async () => {
     setLoading(true);
     try {
       const response = await api.get('/api/me');
-      const { user, csrfToken } = response.data;
+      const { user } = response.data;
 
       setProfile(user);
-      setCsrfToken(csrfToken);
       setAuthenticated(true);
     } catch (error) {
       setAuthenticated(false);
       setProfile(null);
-      setCsrfToken(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    checkAuth();
+    (async () => {
+      await checkAuth();
+    })();
   }, []);
 
   const login = () => {
@@ -55,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ authenticated, profile, csrfToken, login, logout, loading, checkAuth }}>
+    <AuthContext.Provider value={{ authenticated, profile, login, logout, loading, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );
