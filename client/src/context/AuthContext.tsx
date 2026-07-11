@@ -6,7 +6,7 @@ interface AuthContextType {
   profile: any;
   csrfToken: string | null;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
   checkAuth: () => Promise<void>;
 }
@@ -45,9 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/login`;
   };
 
-  const logout = () => {
-    // Redirect to BFF /logout endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/logout`;
+  const logout = async () => {
+    try {
+      const response = await api.post('/logout');
+      window.location.href = response.data.logoutUrl;
+    } catch (error) {
+      window.location.href = '/login';
+    }
   };
 
   return (
