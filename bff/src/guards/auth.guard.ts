@@ -43,7 +43,7 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    const rolesMeta = this.reflector.getAllAndOverride<any>(ROLES_KEY, [
+    const rolesMeta: any = this.reflector.getAllAndOverride(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
