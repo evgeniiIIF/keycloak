@@ -25,7 +25,7 @@ services:
       KC_DB_USERNAME: ${POSTGRES_USER}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME: ${KC_HOSTNAME:-localhost}
+      KC_HOSTNAME: ${KC_HOSTNAME}
       KC_HTTP_PORT: 8080
     ports:
       - "8080:8080"
@@ -56,17 +56,15 @@ services:
     environment:
       PORT: ${PORT}
       SESSION_SECRET: ${SESSION_SECRET}
-      NODE_ENV: ${NODE_ENV:-development}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      NODE_ENV: ${NODE_ENV}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM}
-      KEYCLOAK_PUBLIC_ISSUER: http://localhost:8080/realms/${KEYCLOAK_REALM}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      PROTECTED_SERVICE_URL: http://protected-service:8080
-      FRONTEND_URL: http://localhost:8082
-      CORS_ORIGINS: http://localhost:8082
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_PUBLIC_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      PROTECTED_SERVICE_URL: ${PROTECTED_SERVICE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
       TZ: Europe/Moscow
     depends_on:
       - keycloak
@@ -86,7 +84,7 @@ services:
       - /app/node_modules
     environment:
       JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
-      KEYCLOAK_ISSUER: http://localhost:8080/realms/${KEYCLOAK_REALM}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       TZ: Europe/Moscow
     depends_on:
