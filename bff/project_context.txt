@@ -18,6 +18,7 @@
         services/
             ├── auth.service.spec.ts
             ├── auth.service.ts
+            ├── axios-instance.ts
             ├── http-client.ts
             ├── jwks.service.ts
             ├── keycloak-client.spec.ts
@@ -40,6 +41,7 @@
             ├── logger.ts
             ├── request-context.spec.ts
             ├── request-context.ts
+            ├── session.service.ts
             ├── token-refresh-lock.ts
             ├── utils.ts
         controllers/
@@ -339,7 +341,9 @@ import { RedisService } from './services/redis.service';
 import { JwksService } from './services/jwks.service';
 import { KeycloakClient } from './services/keycloak-client';
 import { AuthService } from './services/auth.service';
+import { AxiosHttpClient } from './services/axios-instance';
 import { HttpClient } from './services/http-client';
+import { SessionService } from './shared/session.service';
 import { TokenRefreshLock } from './shared/token-refresh-lock';
 
 import { AuthController } from './controllers/auth.controller';
@@ -360,7 +364,9 @@ import { CsrfMiddleware } from './middleware/csrf.middleware';
     JwksService,
     KeycloakClient,
     AuthService,
+    AxiosHttpClient,
     HttpClient,
+    SessionService,
     TokenRefreshLock,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
@@ -737,148 +743,168 @@ export class AuthService {
 }
 
 
-src/services/http-client.ts
----------------------------
+src/services/axios-instance.ts
+------------------------------
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
-import { requestContext } from '../shared/request-context';
 import { AuthService } from './auth.service';
 import { TokenRefreshLock } from '../shared/token-refresh-lock';
+import { SessionService } from '../shared/session.service';
 import { Logger } from '../shared/logger';
 import { errorMessage } from '../shared/utils';
+import { BffSession } from '../types/session';
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
-  _retryCount?: number;
 }
 
 @Injectable()
-export class HttpClient {
-  private readonly instance: AxiosInstance;
+export class AxiosHttpClient {
+  readonly client: AxiosInstance;
 
   constructor(
     private authService: AuthService,
     private refreshLock: TokenRefreshLock,
+    private sessions: SessionService,
   ) {
-    this.instance = axios.create();
-    this.instance.interceptors.request.use((cfg) => this.onRequest(cfg));
-    this.instance.interceptors.response.use(
+    this.client = axios.create();
+    this.client.interceptors.request.use((cfg) => this.attachToken(cfg));
+    this.client.interceptors.response.use(
       (res) => res,
-      (err) => this.onResponseError(err),
+      (err) => this.handleResponseError(err),
     );
   }
 
+  // ─── Level 1: Interceptors ───────────────────────────────────────
+
+  private attachToken(cfg: InternalAxiosRequestConfig) {
+    const token = this.sessions.get()?.accessToken;
+    if (token) cfg.headers.Authorization = `Bearer ${token}`;
+    return cfg;
+  }
+
+  private async handleResponseError(error: AxiosError) {
+    try {
+      await this.refreshTokens(error);
+      return this.client(error.config as RetryableConfig);
+    } catch (err) {
+      await this.handleRefreshError(err);
+      throw err;
+    }
+  }
+
+  // ─── Level 2: Orchestration ──────────────────────────────────────
+
+  private async refreshTokens(error: AxiosError) {
+    if (!this.canRetry(error)) throw error;
+
+    const session = this.sessions.get();
+    if (!session?.id) throw error;
+
+    const reqCfg = error.config as RetryableConfig;
+    reqCfg._retry = true;
+
+    const acquired = await this.refreshLock.acquire(session.id);
+
+    if (!acquired) {
+      await this.waitForLockAndRetry(session, reqCfg);
+      return;
+    }
+
+    try {
+      await this.doRefresh(session, reqCfg);
+    } finally {
+      await this.refreshLock.release(session.id);
+    }
+  }
+
+  private async doRefresh(session: BffSession, reqCfg: RetryableConfig) {
+    Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
+    await this.authService.refreshTokens(session);
+    await this.sessions.save(session);
+    this.applyToken(session, reqCfg);
+    Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
+  }
+
+  private async waitForLockAndRetry(session: BffSession, reqCfg: RetryableConfig) {
+    Logger.warn('HttpClient', '401 — another refresh in progress, waiting', { url: reqCfg.url });
+    await this.refreshLock.waitAndRetry(session.id);
+    await this.sessions.reload(session);
+    this.applyToken(session, reqCfg);
+  }
+
+  private async handleRefreshError(err: unknown) {
+    if (this.isInvalidGrant(err)) {
+      Logger.error('HttpClient', 'invalid_grant — session destroyed');
+      const session = this.sessions.get();
+      if (session) await this.sessions.destroy(session);
+      throw new UnauthorizedException('Session expired');
+    }
+    Logger.error('HttpClient', `Refresh failed: ${errorMessage(err)}`);
+  }
+
+  // ─── Level 3: Predicates & Helpers ───────────────────────────────
+
+  private canRetry(error: AxiosError): boolean {
+    const reqCfg = error.config as RetryableConfig | undefined;
+    const session = this.sessions.get();
+    return (
+      error.response?.status === 401 &&
+      !!reqCfg &&
+      !reqCfg._retry &&
+      !!session?.refreshToken &&
+      !!session?.id
+    );
+  }
+
+  private isInvalidGrant(error: any): boolean {
+    return error?.response?.status === 400 && error?.response?.data?.error === 'invalid_grant';
+  }
+
+  private applyToken(session: BffSession, reqCfg: RetryableConfig) {
+    if (session.accessToken) {
+      if (!reqCfg.headers) reqCfg.headers = {} as any;
+      reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+  }
+}
+
+
+src/services/http-client.ts
+---------------------------
+import { Injectable } from '@nestjs/common';
+import { AxiosHttpClient } from './axios-instance';
+
+@Injectable()
+export class HttpClient {
+  constructor(private axios: AxiosHttpClient) {}
+
   async get<T, P>(url: string, params?: P): Promise<T> {
-    const res = await this.instance.get<T>(url, { params });
+    const res = await this.axios.client.get<T>(url, { params });
     return res.data;
   }
 
   async post<T, D>(url: string, data?: D): Promise<T> {
-    const res = await this.instance.post<T>(url, data);
+    const res = await this.axios.client.post<T>(url, data);
     return res.data;
   }
 
   async put<T, D>(url: string, data?: D): Promise<T> {
-    const res = await this.instance.put<T>(url, data);
+    const res = await this.axios.client.put<T>(url, data);
     return res.data;
   }
 
   async delete<T>(url: string): Promise<T> {
-    const res = await this.instance.delete<T>(url);
+    const res = await this.axios.client.delete<T>(url);
     return res.data;
   }
 
   async patch<T, D>(url: string, data?: D): Promise<T> {
-    const res = await this.instance.patch<T>(url, data);
+    const res = await this.axios.client.patch<T>(url, data);
     return res.data;
   }
-
-  private async onRequest(cfg: InternalAxiosRequestConfig) {
-    const ctx = requestContext.getStore();
-    if (ctx?.req?.session?.accessToken) {
-      cfg.headers.Authorization = `Bearer ${ctx.req.session.accessToken}`;
-    }
-    return cfg;
-  }
-
-  private async onResponseError(error: AxiosError) {
-    const reqCfg = error.config as RetryableConfig | undefined;
-
-    if (error.response?.status === 401 && reqCfg && !reqCfg._retry) {
-      return this.handle401(error, reqCfg);
-    }
-
-    throw error;
-  }
-
-  private async handle401(error: AxiosError, reqCfg: RetryableConfig) {
-    const ctx = requestContext.getStore();
-    const session = ctx?.req?.session;
-
-    if (!session?.refreshToken) throw error;
-
-    const sessionId = session.id;
-    if (!sessionId) throw error;
-
-    reqCfg._retry = true;
-    reqCfg._retryCount = (reqCfg._retryCount || 0) + 1;
-
-    if (reqCfg._retryCount > 2) {
-      throw error;
-    }
-
-    const acquired = await this.refreshLock.acquire(sessionId);
-    if (!acquired) {
-      Logger.warn('HttpClient', '401 — another refresh in progress, waiting', { url: reqCfg.url });
-      await this.refreshLock.waitAndRetry(sessionId);
-
-      await new Promise<void>((resolve, reject) => {
-        session.reload((err) => (err ? reject(err) : resolve()));
-      });
-
-      reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
-      return this.instance(reqCfg);
-    }
-
-    Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
-
-    try {
-      await this.authService.refreshTokens(session);
-
-      await new Promise<void>((resolve, reject) => {
-        session.save((err) => (err ? reject(err) : resolve()));
-      });
-
-      reqCfg.headers.Authorization = `Bearer ${session.accessToken}`;
-      Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
-
-      return this.instance(reqCfg);
-    } catch (refreshErr: unknown) {
-      const isInvalidGrant =
-        refreshErr instanceof AxiosError &&
-        refreshErr.response?.status === 400 &&
-        refreshErr.response?.data?.error === 'invalid_grant';
-
-      if (isInvalidGrant) {
-        const data = (refreshErr as any).response?.data || {};
-        Logger.error('HttpClient', 'invalid_grant — session destroyed', {
-          status: String(refreshErr.response?.status),
-          error: data.error,
-          description: data.error_description || undefined,
-        });
-        await new Promise<void>((resolve, reject) => {
-          session.destroy((e) => (e ? reject(e) : resolve()));
-        });
-        throw new UnauthorizedException('Session expired');
-      }
-
-      Logger.error('HttpClient', `Refresh failed: ${errorMessage(refreshErr)}`);
-      throw refreshErr;
-    } finally {
-      await this.refreshLock.release(sessionId);
-    }
-  }
 }
+
 
 src/services/jwks.service.ts
 ----------------------------
@@ -1365,6 +1391,38 @@ export interface RequestCtx {
 }
 
 export const requestContext = new AsyncLocalStorage<RequestCtx>();
+
+
+src/shared/session.service.ts
+-----------------------------
+import { Injectable } from '@nestjs/common';
+import { requestContext } from './request-context';
+import { BffSession } from '../types/session';
+
+@Injectable()
+export class SessionService {
+  get(): BffSession | undefined {
+    return requestContext.getStore()?.req?.session;
+  }
+
+  reload(session: BffSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.reload((err: any) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  save(session: BffSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.save((err: any) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  destroy(session: BffSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.destroy((e: any) => (e ? reject(e) : resolve()));
+    });
+  }
+}
 
 
 src/shared/token-refresh-lock.ts

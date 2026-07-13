@@ -7,7 +7,9 @@ import { RedisService } from './services/redis.service';
 import { JwksService } from './services/jwks.service';
 import { KeycloakClient } from './services/keycloak-client';
 import { AuthService } from './services/auth.service';
+import { AxiosHttpClient } from './services/axios-instance';
 import { HttpClient } from './services/http-client';
+import { SessionService } from './shared/session.service';
 import { TokenRefreshLock } from './shared/token-refresh-lock';
 
 import { AuthController } from './controllers/auth.controller';
@@ -28,7 +30,9 @@ import { CsrfMiddleware } from './middleware/csrf.middleware';
     JwksService,
     KeycloakClient,
     AuthService,
+    AxiosHttpClient,
     HttpClient,
+    SessionService,
     TokenRefreshLock,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
