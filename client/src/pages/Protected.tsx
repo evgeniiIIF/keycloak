@@ -1,22 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import api from '../api/api';
 
 const Protected = () => {
-  const { authenticated, login, profile } = useAuth();
   const [getData, setGetData] = useState<any>(null);
   const [postData, setPostData] = useState<any>(null);
   const [getError, setGetError] = useState<string | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authenticated) {
-      // Test GET (SessionGuard only)
-      api.get('/api/hello')
-        .then(res => setGetData(res.data))
-        .catch(err => setGetError(err.response?.data?.message || 'GET failed'));
-    }
-  }, [authenticated]);
+    api.get('/api/hello')
+      .then(res => setGetData(res.data))
+      .catch(err => setGetError(err.response?.data?.message || 'GET failed'));
+  }, []);
 
   const testPost = async () => {
     setPostError(null);
@@ -28,20 +23,9 @@ const Protected = () => {
     }
   };
 
-  if (!authenticated) {
-    return (
-      <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-        <h1>Protected Page</h1>
-        <p>You must be logged in to see this content.</p>
-        <button onClick={login} style={{ padding: '10px 20px', cursor: 'pointer' }}>Login Now</button>
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Protected Page</h1>
-      <p>Welcome, <strong>{profile?.preferred_username || 'User'}</strong>!</p>
 
       <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px' }}>
         <h3>GET Test (Session Guard)</h3>

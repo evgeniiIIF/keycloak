@@ -42,6 +42,7 @@ export const config = {
     cookieName: process.env.SESSION_COOKIE_NAME || 'connect.sid',
     prefix: process.env.SESSION_PREFIX || 'sess:',
     ttl: sessionTtl,
+    oauthStateTtl: parseInt(process.env.OAUTH_STATE_TTL || '600', 10),
   },
   keycloak: {
     issuer: process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',

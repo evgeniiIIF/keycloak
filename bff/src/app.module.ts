@@ -1,46 +1,27 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
-import { AuthGuard } from './guards/auth.guard';
-import { RedisService } from './services/redis.service';
-import { JwksService } from './services/jwks.service';
-import { KeycloakClient } from './services/keycloak-client';
-import { AuthService } from './services/auth.service';
-import { AxiosHttpClient } from './services/axios-instance';
-import { HttpClient } from './services/http-client';
-import { SessionService } from './shared/session.service';
-import { TokenRefreshLock } from './shared/token-refresh-lock';
+import { AuthModule } from './auth/auth.module';
+import { GatewayModule } from './gateway/gateway.module';
+import { SessionModule } from './session/session.module';
+import { RedisModule } from './redis/redis.module';
+import { SharedModule } from './shared/shared.module';
 
-import { AuthController } from './controllers/auth.controller';
-import { ProxyController } from './controllers/proxy.controller';
-import { HealthController } from './controllers/health.controller';
-import { BackchannelController } from './controllers/backchannel.controller';
+import { SessionContextInterceptor } from './shared/interceptors/session-context.interceptor';
 
-import { SessionContextInterceptor } from './interceptors/session-context.interceptor';
-import { CsrfMiddleware } from './middleware/csrf.middleware';
+import { HealthController } from './shared/controllers/health.controller';
 
 @Module({
   imports: [
     TerminusModule,
+    SharedModule,
+    RedisModule,
+    SessionModule,
+    AuthModule,
+    GatewayModule,
   ],
-  controllers: [AuthController, ProxyController, HealthController, BackchannelController],
-  providers: [
-    RedisService,
-    JwksService,
-    KeycloakClient,
-    AuthService,
-    AxiosHttpClient,
-    HttpClient,
-    SessionService,
-    TokenRefreshLock,
-    { provide: APP_GUARD, useClass: AuthGuard },
-    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
-  ],
-  exports: [RedisService],
+  controllers: [HealthController],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor }],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CsrfMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}

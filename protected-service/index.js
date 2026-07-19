@@ -92,19 +92,26 @@ app.get('/', async (req, res) => {
       message: 'Access granted to the protected resource'
     });
   } catch (e) {
-    const reason = e.message.includes('"exp"')
-      ? 'Token expired (exp claim failed)'
-      : e.message.includes('"iss"')
-      ? 'Issuer mismatch'
-      : e.message.includes('"aud"')
-      ? 'Audience mismatch'
-      : e.message.includes('signature')
-      ? 'Signature verification failed'
-      : e.message;
+    const now = new Date();
+    const tokenExp = claims?.exp ? new Date(claims.exp * 1000) : null;
+    const tokenIat = claims?.iat ? new Date(claims.iat * 1000) : null;
+    const tokenAud = Array.isArray(claims?.aud) ? claims.aud.join(',') : (claims?.aud || '-');
+    const tokenIss = claims?.iss || '-';
 
-    log('ERROR', `JWT verification failed: ${reason}`, {
+    log('ERROR', `JWT verification failed`, {
+      reason: e.message,
+      token_iss: tokenIss,
+      expected_iss: KEYCLOAK_ISSUER,
+      iss_match: tokenIss === KEYCLOAK_ISSUER ? 'YES' : 'NO',
+      token_aud: tokenAud,
+      expected_aud: KEYCLOAK_CLIENT_ID,
+      aud_match: tokenAud === KEYCLOAK_CLIENT_ID ? 'YES' : 'NO',
+      token_exp: tokenExp ? tokenExp.toISOString() : '?',
+      token_iat: tokenIat ? tokenIat.toISOString() : '?',
+      now: now.toISOString(),
+      expired: tokenExp ? (now > tokenExp ? 'YES' : 'NO') : '?',
+      token_age_sec: tokenIat ? Math.round((now - tokenIat) / 1000) : '?',
       user: claims?.preferred_username || claims?.email || claims?.sub || '?',
-      kid: '(see JWKS)',
       alg: claims?.alg || '?',
       method: req.method,
       path: req.path,

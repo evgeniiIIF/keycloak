@@ -1,11 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import express from 'express';
 import { AppModule } from './app.module';
 import { config } from './config/config';
-import { RedisService } from './services/redis.service';
-import { HttpExceptionFilter } from './filters/http-exception.filter';
-import { Logger } from './shared/logger';
+import { RedisService } from './redis/services/redis.service';
+import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
+import { Logger } from './shared/logger/logger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
@@ -27,9 +26,6 @@ async function bootstrap() {
   // Body parsers
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-
-  // Validation
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
 
   // Global error handler
   app.useGlobalFilters(new HttpExceptionFilter());

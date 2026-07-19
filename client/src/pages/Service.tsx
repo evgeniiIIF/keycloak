@@ -1,40 +1,17 @@
-
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import api from '../api/api';
 
 const Service = () => {
-  const { authenticated, profile } = useAuth();
   const [serviceData, setServiceData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!authenticated) return;
-
-      try {
-        setLoading(true);
-        const response = await api.get('/api/service');
-        setServiceData(response.data);
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to fetch data from the protected service');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [authenticated]);
-
-  if (!authenticated) {
-    return (
-      <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center' }}>
-        <h1>Access Restricted</h1>
-        <p>You must be logged in to access this service.</p>
-      </div>
-    );
-  }
+    api.get('/api/service')
+      .then(res => setServiceData(res.data))
+      .catch(err => setError(err.response?.data?.message || 'Failed to fetch data from the protected service'))
+      .finally(() => setLoading(false));
+  }, []);
 
   if (loading) {
     return (
@@ -54,8 +31,8 @@ const Service = () => {
           User Information (Verified by Service)
         </h3>
         <div style={{ marginTop: '15px', fontSize: '14px', lineHeight: '1.6' }}>
-          <p><strong>Username:</strong> {serviceData?.user?.preferred_username || profile?.preferred_username}</p>
-          <p><strong>Email:</strong> {serviceData?.user?.email || profile?.email}</p>
+          <p><strong>Username:</strong> {serviceData?.user?.preferred_username}</p>
+          <p><strong>Email:</strong> {serviceData?.user?.email}</p>
           <p><strong>Subject (ID):</strong> {serviceData?.user?.sub}</p>
           <p><strong>Service Message:</strong> <span style={{ color: '#4caf50' }}>{serviceData?.message}</span></p>
         </div>

@@ -102,6 +102,8 @@ services:
     volumes:
       - ./client:/app
       - /app/node_modules
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
     depends_on:
       - bff
     networks:

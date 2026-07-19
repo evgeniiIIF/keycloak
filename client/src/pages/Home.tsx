@@ -1,8 +1,14 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useEffect, useState } from 'react';
+import api from '../api/api';
 
 const Home = () => {
-  const { profile, logout } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    api.get('/api/me')
+      .then(res => setProfile(res.data.user))
+      .catch(() => {});
+  }, []);
 
   return (
     <div>
@@ -13,9 +19,6 @@ const Home = () => {
         <p><strong>Email:</strong> {profile?.email || 'N/A'}</p>
         <p><strong>Name:</strong> {profile?.name || 'N/A'}</p>
       </div>
-      <button onClick={logout} className="btn btn-danger" style={{ marginTop: '1rem' }}>
-        Logout
-      </button>
     </div>
   );
 };
