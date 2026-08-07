@@ -19,14 +19,9 @@ export class AuthService {
   ) {}
 
   async buildAuthorizationUrl(): Promise<string> {
-    const codeVerifier = crypto.randomBytes(32).toString('hex');
-    const codeChallenge = crypto
-      .createHash('sha256')
-      .update(codeVerifier)
-      .digest()
-      .toString('base64url');
-    const state = crypto.randomBytes(16).toString('hex');
-    await this.redis.setOAuthState(state, codeVerifier);
+    const { verifier, challenge } = this.generatePkce();       // генерируем PKCE пару
+    const state = crypto.randomBytes(16).toString('hex');     // создаем state
+    await this.redis.setOAuthState(state, verifier);          // сохраняем в Redis
 
     const params = new URLSearchParams({
       client_id: config.keycloak.clientId,
@@ -34,10 +29,21 @@ export class AuthService {
       redirect_uri: config.keycloak.redirectUri,
       scope: 'openid profile email',
       state,
-      code_challenge: codeChallenge,
+      code_challenge: challenge,
       code_challenge_method: 'S256',
     });
     return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
+  }
+
+  // Примитив для генерации PKCE
+  private generatePkce() {
+    const verifier = crypto.randomBytes(32).toString('hex');
+    const challenge = crypto
+      .createHash('sha256')
+      .update(verifier)
+      .digest()
+      .toString('base64url');
+    return { verifier, challenge };
   }
 
   async exchangeCode(code: string, state: string): Promise<string> {
@@ -48,7 +54,7 @@ export class AuthService {
 
     const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier);
     const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);
-    
+
     const session = await this.sessionService.create(idPayload, tokenSet, idPayload.sub);
     await this.redis.deleteOAuthState(state);
 

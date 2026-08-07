@@ -7,6 +7,12 @@ import { TokenRefreshLock } from '../../session/services/token-refresh-lock.serv
 import { SessionService } from '../../session/services/session.service';
 import { Logger } from '../../shared/logger/logger';
 import { isKeycloakErrorBody } from '../../shared/utils/is-keycloak-error-body';
+import { Session } from '../../types/session';
+
+// Расширяем стандартный конфиг Axios для поддержки флага ретрая
+export interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
 
 @Injectable()
 export class AxiosHttpClient {
@@ -33,50 +39,80 @@ export class AxiosHttpClient {
     return cfg;
   }
 
+  // Level 1: Карта логики
   private async handleResponseError(error: AxiosError) {
     try {
-      await this.refreshTokens(error);
-      return await this.client(error.config as InternalAxiosRequestConfig);
+      await this.refreshTokens(error);             // обновляем токен или кидает ошибку
+      return await this.client(error.config as RetryableConfig); // повторяем запрос
     } catch (err) {
       if (this.isInvalidGrant(err)) {
-        Logger.error('HttpClient', 'invalid_grant — destroying session');
-        await this.destroySession();
-        throw new UnauthorizedException('Session expired');
+        await this.destroySession();               // уничтожаем сессию
+        throw new UnauthorizedException('Session expired'); // бросаем 401
       }
+      throw error;                                 // пробрасываем оригинальную ошибку
+    }
+  }
+
+  // Level 2: Оглавление
+  private async refreshTokens(error: AxiosError): Promise<void> {
+    this.validateRetry(error);                       // проверяем можно ли повторить или кидает ошибку
+    const session = this.getSession();               // берем сессию или кидает ошибку
+    const config = this.markRetry(error.config);      // помечаем запрос как повторный
+    await this.performRefresh(session, config);       // обновляем токен или кидает ошибку
+  }
+
+  // Level 3: Шаги с деталями
+  private validateRetry(error: AxiosError): void {
+    const config = error.config as RetryableConfig | undefined;
+    if (error.response?.status !== 401 || !config || config._retry) {
       throw error;
     }
   }
 
-  private async refreshTokens(error: AxiosError): Promise<void> {
-    if (error.response?.status !== 401) throw error;
-    if (!error.config || error.config._retry) throw error;
-
+  private getSession(): Session {
     const session = this.request.session;
-    if (!session) throw error;
+    if (!session) throw new Error('No session found in request context');
+    return session;
+  }
 
-    error.config._retry = true;
-    const reqCfg = error.config;
+  private markRetry(config: InternalAxiosRequestConfig | undefined): RetryableConfig {
+    return { ...config as RetryableConfig, _retry: true };
+  }
 
+  private async performRefresh(session: Session, config: RetryableConfig): Promise<void> {
     const acquired = await this.refreshLock.acquire(session.id);
     if (!acquired) {
-      await this.refreshLock.waitAndRetry(session.id);
-      const updated = await this.sessionService.get(session.id);
-      if (updated) {
-        this.request.session = updated;
-        this.applyToken(updated.tokens.accessToken, reqCfg);
-      }
+      await this.handleConcurrentRefresh(session, config); // ждем параллельное обновление
       return;
     }
-
     try {
-      Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
-      const newTokens = await this.authService.refreshTokens(session.id, session.tokens);
-      this.request.session = { ...session, tokens: newTokens };
-      this.applyToken(newTokens.accessToken, reqCfg);
-      Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
+      await this.executeRefresh(session, config);          // выполняем обновление
     } finally {
-      await this.refreshLock.release(session.id);
+      await this.refreshLock.release(session.id);          // освобождаем лок в любом случае
     }
+  }
+
+  // Level 4: Атомарные действия
+  private async handleConcurrentRefresh(session: Session, config: RetryableConfig): Promise<void> {
+    await this.refreshLock.waitAndRetry(session.id);
+    const updated = await this.sessionService.get(session.id);
+    if (updated) {
+      this.request.session = updated;
+      this.applyToken(updated.tokens.accessToken, config);
+    }
+  }
+
+  private async executeRefresh(session: Session, config: RetryableConfig): Promise<void> {
+    Logger.warn('HttpClient', '401 — refreshing token', { url: config.url });
+    const newTokens = await this.authService.refreshTokens(session.id, session.tokens);
+    this.request.session = { ...session, tokens: newTokens };
+    this.applyToken(newTokens.accessToken, config);
+    Logger.info('HttpClient', 'Token refreshed, retrying', { url: config.url });
+  }
+
+  // Level 5: Примитивы
+  private applyToken(accessToken: string, config: RetryableConfig): void {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
 
   private async destroySession(): Promise<void> {
@@ -91,9 +127,5 @@ export class AxiosHttpClient {
     if (error.response?.status !== 400) return false;
     const { data } = error.response;
     return isKeycloakErrorBody(data) && data.error === 'invalid_grant';
-  }
-
-  private applyToken(accessToken: string, reqCfg: InternalAxiosRequestConfig): void {
-    reqCfg.headers.Authorization = `Bearer ${accessToken}`;
   }
 }
