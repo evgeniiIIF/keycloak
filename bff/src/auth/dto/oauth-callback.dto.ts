@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 
 export class OAuthCallbackDto {
   @IsString()
@@ -6,4 +6,12 @@ export class OAuthCallbackDto {
 
   @IsString()
   state!: string;
+
+  @IsString()
+  @IsOptional()
+  session_state?: string;
+
+  @IsString()
+  @IsOptional()
+  iss?: string;
 }

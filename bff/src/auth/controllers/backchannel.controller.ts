@@ -1,17 +1,16 @@
-import { Controller, Post, Req, Header } from '@nestjs/common';
-import { Request } from 'express';
+import { Controller, Post, Header, Body } from '@nestjs/common';
 import { Public } from '../decorators/auth.decorator';
 import { BackchannelService } from '../services/backchannel.service';
+import { BackchannelLogoutDto } from '../dto/backchannel-logout.dto';
 
 @Public()
 @Controller()
 export class BackchannelController {
   constructor(private backchannelService: BackchannelService) {}
 
-  // Извлекаем токен из запроса → передаём в сервис для обработки
   @Post('api/auth/backchannel-logout')
   @Header('Cache-Control', 'no-store')
-  async backchannelLogout(@Req() req: Request) {
-    await this.backchannelService.handleBackchannelLogout(req.body?.logout_token);
+  async backchannelLogout(@Body() body: BackchannelLogoutDto) {
+    await this.backchannelService.handleBackchannelLogout(body.logout_token);
   }
 }

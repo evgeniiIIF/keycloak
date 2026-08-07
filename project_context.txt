@@ -1,0 +1,4402 @@
+СТРУКТУРА ПРОЕКТА:
+==================================================
+
+    ├── .env
+    ├── .env.example
+    ├── .gitignore
+    ├── CLAUDE.md
+    ├── README.md
+    ├── docker-compose.prod.yml
+    ├── docker-compose.yml
+    docs/
+        compose/
+            plans/
+                ├── 2026-07-11-security-decorators-refactor.md
+    client/
+        ├── .dockerignore
+        ├── Dockerfile
+        ├── Dockerfile.dev
+        ├── index.html
+        ├── nginx.conf
+        ├── package.json
+        ├── tsconfig.json
+        ├── vite.config.ts
+        public/
+        src/
+            ├── App.tsx
+            ├── index.css
+            ├── main.tsx
+            pages/
+                ├── Home.tsx
+                ├── Protected.tsx
+                ├── Service.tsx
+            components/
+            api/
+                ├── api.ts
+    protected-service/
+        ├── Dockerfile
+        ├── Dockerfile.dev
+        ├── index.js
+        ├── package.json
+    .vscode/
+        ├── launch.json
+        ├── settings.json
+    bff/
+        ├── .dockerignore
+        ├── .env
+        ├── .prettierrc
+        ├── Dockerfile
+        ├── Dockerfile.dev
+        ├── SESSION_ARCHITECTURE.md
+        ├── eslint.config.js
+        ├── jest.config.js
+        ├── nest-cli.json
+        ├── package.json
+        ├── tsconfig.json
+        src/
+            ├── app.module.ts
+            ├── main.ts
+            ├── test-setup.ts
+            gateway/
+                ├── gateway.module.ts
+                services/
+                    ├── axios-http-client.service.ts
+                    ├── http-client.service.ts
+                controllers/
+                    ├── gateway.controller.ts
+            types/
+                ├── auth-session.interface.ts
+                ├── axios.d.ts
+                ├── keycloak.d.ts
+                ├── session.d.ts
+            redis/
+                ├── redis.module.ts
+                services/
+                    ├── redis.service.ts
+                constants/
+                    ├── redis-key-prefixes.ts
+            config/
+                ├── config.ts
+            shared/
+                ├── request-context.ts
+                ├── shared.module.ts
+                filters/
+                    ├── http-exception.filter.ts
+                logger/
+                    ├── logger.ts
+                interceptors/
+                    ├── session-context.interceptor.ts
+                utils/
+                    ├── assert-authenticated.ts
+                    ├── is-keycloak-error-body.ts
+                    ├── utils.ts
+                controllers/
+                    ├── health.controller.ts
+            auth/
+                ├── auth.module.ts
+                services/
+                    ├── auth.service.ts
+                    ├── backchannel.service.ts
+                    ├── jwks.service.ts
+                    ├── keycloak.service.ts
+                    ├── session.factory.ts
+                interceptors/
+                    ├── oauth-callback.interceptor.ts
+                dto/
+                    ├── backchannel-logout.dto.ts
+                    ├── oauth-callback.dto.ts
+                controllers/
+                    ├── auth.controller.ts
+                    ├── backchannel.controller.ts
+                decorators/
+                    ├── auth.decorator.ts
+                guards/
+                    ├── auth.guard.ts
+            session/
+                ├── session.module.ts
+                services/
+                    ├── session.service.ts
+                    ├── token-refresh-lock.service.ts
+    themes/
+        custom-login/
+            login/
+                ├── login.ftl
+                ├── template.ftl
+                ├── theme.properties
+                resources/
+                    css/
+                        ├── login.css
+
+==================================================
+
+СОДЕРЖИМОЕ ФАЙЛОВ:
+==================================================
+
+.env
+----
+# === Keycloak ===
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=admin
+KEYCLOAK_REALM=TestRealm
+KEYCLOAK_CLIENT_ID=bff-client
+KEYCLOAK_CLIENT_SECRET=AQce4SdHum6sxqnreawz3ArsKm4tIx47
+KC_HOSTNAME=localhost
+KEYCLOAK_ISSUER=http://keycloak:8080/realms/TestRealm
+KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
+
+# === Database ===
+POSTGRES_DB=keycloak
+POSTGRES_USER=keycloak
+POSTGRES_PASSWORD=password
+
+# === Redis ===
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# === BFF ===
+PORT=3000
+NODE_ENV=development
+SESSION_SECRET=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+OAUTH_STATE_TTL=600
+FRONTEND_URL=http://localhost:8082
+PROTECTED_SERVICE_URL=http://protected-service:8080
+
+# === Frontend ===
+VITE_API_URL=http://localhost:3000
+
+
+.env.example
+------------
+# === Keycloak ===
+KEYCLOAK_ADMIN=
+KEYCLOAK_ADMIN_PASSWORD=
+KEYCLOAK_REALM=TestRealm
+KEYCLOAK_CLIENT_ID=bff-client
+KEYCLOAK_CLIENT_SECRET=
+KC_HOSTNAME=localhost
+KEYCLOAK_ISSUER=http://keycloak:8080/realms/TestRealm
+KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
+
+# === Database ===
+POSTGRES_DB=keycloak
+POSTGRES_USER=keycloak
+POSTGRES_PASSWORD=
+
+# === Redis ===
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# === BFF ===
+PORT=3000
+NODE_ENV=development
+SESSION_SECRET=  # >= 32 chars, generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+OAUTH_STATE_TTL=600  # OAuth state TTL in seconds (default 10 minutes)
+FRONTEND_URL=http://localhost:8082
+PROTECTED_SERVICE_URL=http://protected-service:8080
+
+# === Frontend ===
+VITE_API_URL=http://localhost:3000
+
+
+.gitignore
+----------
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Собранные файлы
+dist/
+build/
+
+# Ключи и пароли
+.env
+*.pem
+*.key
+*.crt
+
+# Логи
+logs/
+*.log
+*.log.*
+
+# Редакторы и IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Файлы операционной системы
+.DS_Store
+Thumbs.db
+
+# Docker (игнорируем томы, если не нужно сохранять в репозитории)
+docker-compose.override.yml
+volumes/
+postgres_data/
+
+# Временные файлы
+*.tmp
+*.bak
+
+CLAUDE.md
+---------
+# Code Style: Stepdown Rule + Declarative Storytelling
+
+## Основная цель
+Каждая функция — **карта логики**, читается сверху вниз как сценарий.
+Читатель видит **общий план** сразу и опускается в детали только осознанно.
+
+## Главные правила
+
+### 1. Верхний уровень функции — чистый сюжет
+Тело состоит только из:
+- вызовов методов с говорящими именами,
+- управляющих конструкций (`try/catch`, `if/else if`), которые показывают **ветвление сценария**.
+
+Внутри `try`, `catch`, `if` — **только вызовы методов**, никакой реализации, вычислений, мутаций.
+
+### 2. Каждый метод — один шаг на одном уровне абстракции
+Имя метода: `глагол + объект` (`validateRetry`, `getSession`, `markRetry`, `applyToken`).
+Метод либо содержит **следующий уровень сюжета**, либо является **примитивом**.
+
+### 3. Декомпозиция до примитивов
+Функция декомпозируется до тех пор, пока не останется:
+- простой `return`,
+- одна проверка,
+- один вызов внешнего API/сервиса.
+
+**Критерий примитива**: если метод делает ровно одну проверку, один вызов, или один return — он примитив. Не разбивай дальше.
+
+**Не декомпозируй**: простые CRUD-операции, геттеры,单一 вызовы API, однострочные хелперы. Декомпозиция нужна когда функция рассказывает историю, а не когда она делает одну вещь.
+
+### 4. Имена заменяют комментарии
+Имя метода должно точно выражать намерение:
+- `validateRetry(error)` — проверяет и бросает ошибку, если ретрай невозможен.
+- `getSession()` — возвращает сессию или бросает ошибку, если её нет.
+- `markRetry(config)` — помечает конфиг как повторный запрос.
+- `applyToken(session, config)` — записывает access-токен в заголовки.
+
+Комментарии только для неочевидных бизнес-правил, предупреждений о побочных эффектах, TODO.
+
+### 5. Guard clauses без else
+Проверки с немедленным выходом (`throw`/`return`) в начале метода.
+Основной сценарий не проваливается в `else`.
+
+### 6. Комментарии: описание + дерево + инлайны
+Над функцией — **описание** что делает (одно предложение).
+Внутри — **дерево** ветвлений (если их много) + **инлайны** у каждой строки.
+
+**Описание сверху:**
+```typescript
+// Обновляем токен и повторяем запрос или кидаем ошибку
+private async handleResponseError(error: AxiosError) {
+```
+
+**Инлайны** — поясняют каждую строку, включая "или кидает ошибку":
+```typescript
+  try {
+    await this.refreshTokens(error);        // обновляем токен или кидает ошибку
+    return this.client(error.config);       // повторяем запрос или кидает ошибку
+  } catch (err) {
+    await this.handleRefreshError(err);     // обрабатываем ошибку
+    throw err;                              // пробрасываем
+  }
+```
+
+**Дерево** — показывает ветвления когда их много:
+```typescript
+// Обработка backchannel logout от Keycloak
+//   ├─ невалидный токен → 401
+//   └─ валидный → проверяем replay
+//                    ├─ replay → 401
+//                    └─ ок → валидируем sub
+//                              ├─ нет sub → 400
+//                              └─ есть → удаляем сессии
+async handleBackchannelLogout(logoutToken: string): Promise<void> {
+```
+
+**If/else ветвление:**
+```typescript
+// Обрабатываем ошибку обновления токена
+// invalid_grant → уничтожаем сессию и бросаем, иное → логируем
+private async handleRefreshError(err: unknown) {
+  if (this.isInvalidGrant(err)) {
+    await this.destroySession();            // уничтожаем сессию
+    throw new UnauthorizedException('Session expired');  // бросаем
+  }
+  Logger.error('HttpClient', `Refresh failed: ${errorMessage(err)}`);  // логируем
+}
+```
+
+**Try/finally:**
+```typescript
+// Обновляем токен с блокировкой от параллельных обновлений
+private async performRefresh(session: BffSession, config: RetryableConfig) {
+  const acquired = await this.refreshLock.acquire(session.id);  // пытаемся забрать lock
+  if (!acquired) {
+    await this.waitForConcurrentRefresh(session, config);      // ждём параллельное
+    return;
+  }
+  try {
+    await this.executeTokenRefresh(session, config);           // обновляем токен или кидает ошибку
+  } finally {
+    await this.refreshLock.release(session.id);                // освобождаем lock в любом случае
+  }
+}
+```
+
+### 7. Антипаттерны
+
+```typescript
+// ❌ Антипаттерн: логика внутри try
+async handleRequest() {
+  try {
+    const session = await this.getSession();
+    const token = session.accessToken;                        // мутация
+    const headers = { Authorization: `Bearer ${token}` };     // вычисление
+    return this.client.get(url, { headers });                 // реализация
+  } catch (err) { ... }
+}
+
+// ✅ Правильно:
+async handleRequest() {
+  try {
+    const session = await this.getSession();
+    const config = this.buildAuthConfig(session);             // один шаг
+    return this.client.get(url, config);                      // один шаг
+  } catch (err) { ... }
+}
+
+// ❌ Антипаттерн: результат вызова передаётся напрямую в другой метод
+async login(@Req() req: Request, @Res() res: Response) {
+  res.redirect(this.authService.buildAuthorizationUrl(req.session));
+}
+
+// ✅ Правильно: сначала сохраняем в переменную, потом передаём
+// Результат метода → переменная → использование
+async login(@Req() req: Request, @Res() res: Response) {
+  const authorizationUrl = this.authService.buildAuthorizationUrl(req.session);
+  res.redirect(authorizationUrl);
+}
+```
+
+### 8. Типизация: явные типы вместо Record<string, any>
+
+Все типы должны быть явными. `Record<string, any>`, `Record<string, string>`, `any` — антипаттерны.
+
+```typescript
+// ❌ Антипаттерн: тип не описывает контракт
+async handleCallback(query: Record<string, string>, session: BffSession) {
+  if (query.error) { ... }
+  if (!query.code || !query.state) { ... }
+}
+
+// ✅ Правильно: явный интерфейс описывает ожидаемые параметры
+export interface OAuthCallbackQuery {
+  error?: string;   // ошибка от OAuth провайдера
+  code?: string;    // authorization code
+  state?: string;   // CSRF параметр
+}
+
+async handleCallback(query: OAuthCallbackQuery, session: BffSession) {
+  if (query.error) { ... }
+  if (!query.code || !query.state) { ... }
+}
+```
+
+**Правила:**
+- Определяй interface/type для DTO, query params, configs — там где `Record` не описывает реальную структуру
+- Используй `unknown` вместо `any` когда тип неизвестен
+- Экспортируй интерфейсы если они используются в нескольких местах
+
+## SOLID, KISS, DRY
+- **S** — класс и каждый метод отвечают за одну задачу.
+- **O** — класс открыт для расширения через композицию (новые стратегии), закрыт для модификации.
+- **L** — подклассы не ломают контракт родителя.
+- **I** — зависимости узкие, ничего лишнего. Импортируй только то, что используешь.
+- **D** — зависимости внедряются через конструктор (инверсия контроля).
+- **KISS** — простота ради понимания: верхний уровень читается как рассказ.
+- **DRY** — дублирование логики устранено, но без фанатизма: примитивы не дублируются, лишние абстракции не создаются.
+
+## Ключевой приём: карта логики через try/catch
+Если в функции есть альтернативные сценарии, они оформляются как `try/catch` с **ясно видимыми ветками**:
+
+```typescript
+// Обновляем токен и повторяем запрос или кидаем ошибку
+private async handleResponseError(error: AxiosError) {
+  try {
+    await this.refreshTokens(error);        // обновляем токен или кидает ошибку
+    return this.client(error.config);       // повторяем запрос или кидает ошибку
+  } catch (err) {
+    await this.handleRefreshError(err);     // обрабатываем ошибку
+    throw err;                              // пробрасываем
+  }
+}
+```
+
+## Эталонный пример: AxiosHttpClient
+
+5 уровней абстракции, каждый чистый:
+
+| Level | Что | Пример |
+|-------|-----|--------|
+| 1 | Карта логики | `handleResponseError` — try/catch |
+| 2 | Оглавление | `refreshTokens` — 4 вызова, ничего больше |
+| 3 | Шаги с деталями | `validateRetry`, `getSession`, `markRetry`, `performRefresh` |
+| 4 | Атомарные действия | `executeTokenRefresh`, `handleRefreshError` |
+| 5 | Примитивы | `canRetry`, `isInvalidGrant`, `applyToken` |
+
+```typescript
+export class AxiosHttpClient {
+  // ... constructor, interceptors ...
+
+  // Обновляем токен и повторяем запрос или кидаем ошибку
+  private async handleResponseError(error: AxiosError) {
+    try {
+      await this.refreshTokens(error);        // обновляем токен или кидает ошибку
+      return this.client(error.config);       // повторяем запрос или кидает ошибку
+    } catch (err) {
+      await this.handleRefreshError(err);     // обрабатываем ошибку
+      throw err;                              // пробрасываем
+    }
+  }
+
+  // Обновляем access token через refresh token или кидаем ошибку
+  private async refreshTokens(error: AxiosError) {
+    this.validateRetry(error);                                   // проверяем можно ли повторить или кидает ошибку
+    const session = this.getSession();                           // берём сессию или кидает ошибку
+    const config = this.markRetry(error.config);                 // помечаем как повтор
+    await this.performRefresh(session, config);                  // обновляем токен или кидает ошибку
+  }
+
+  private validateRetry(error: AxiosError) {
+    if (!this.canRetry(error)) throw error;
+  }
+
+  private getSession(): BffSession {
+    const session = this.sessions.get();
+    if (!session?.id) throw new Error('No session for token refresh');
+    return session;
+  }
+
+  private markRetry(config: InternalAxiosRequestConfig): RetryableConfig {
+    return { ...config, _retry: true };
+  }
+
+  // Обновляем токен с блокировкой от параллельных обновлений
+  private async performRefresh(session: BffSession, config: RetryableConfig) {
+    const acquired = await this.refreshLock.acquire(session.id);  // пытаемся забрать lock
+    if (!acquired) {
+      await this.waitForConcurrentRefresh(session, config);      // ждём параллельное
+      return;
+    }
+    try {
+      await this.executeTokenRefresh(session, config);           // обновляем токен или кидает ошибку
+    } finally {
+      await this.refreshLock.release(session.id);                // освобождаем lock в любом случае
+    }
+  }
+
+  // Ждём пока другой поток обновит токен → перезагружаем сессию → применяем новый токен
+  private async waitForConcurrentRefresh(session: BffSession, config: RetryableConfig) {
+    Logger.warn('HttpClient', 'Waiting for concurrent refresh', { url: config.url });
+    await this.refreshLock.waitAndRetry(session.id);
+    await this.sessions.reload(session);
+    this.applyToken(session, config);
+  }
+
+  // Обновляем токен через auth сервис → сохраняем сессию → применяем новый токен
+  private async executeTokenRefresh(session: BffSession, config: RetryableConfig) {
+    Logger.warn('HttpClient', 'Refreshing token', { url: config.url });
+    await this.authService.refreshTokens(session);
+    await this.sessions.save(session);
+    this.applyToken(session, config);
+    Logger.info('HttpClient', 'Token refreshed', { url: config.url });
+  }
+
+  // Обрабатываем ошибку обновления токена
+  // invalid_grant → уничтожаем сессию и бросаем, иное → логируем
+  private async handleRefreshError(err: unknown) {
+    if (this.isInvalidGrant(err)) {
+      await this.destroySession();            // уничтожаем сессию
+      throw new UnauthorizedException('Session expired');  // бросаем
+    }
+    Logger.error('HttpClient', `Refresh failed: ${errorMessage(err)}`);  // логируем
+  }
+
+  private async destroySession() {
+    Logger.error('HttpClient', 'invalid_grant — destroying session');
+    const session = this.sessions.get();
+    if (session) await this.sessions.destroy(session);
+  }
+
+  private canRetry(error: AxiosError): boolean {
+    const config = error.config as RetryableConfig | undefined;
+    const session = this.sessions.get();
+    return (
+      error.response?.status === 401 &&
+      !!config &&
+      !config._retry &&
+      !!session?.refreshToken &&
+      !!session?.id
+    );
+  }
+
+  private isInvalidGrant(error: any): boolean {
+    return error?.response?.status === 400 && error?.response?.data?.error === 'invalid_grant';
+  }
+
+  private applyToken(session: BffSession, config: RetryableConfig) {
+    if (session.accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+  }
+}
+```
+
+Ключевые принципы примера:
+- **Level 2 чистый** — `refreshTokens` это 4 вызова, ничего больше. Ни мутаций, ни кастов, ни guard-ов.
+- **`markRetry` — чистая функция** — возвращает новый объект, не мутирует `config`.
+- **Каждый Level вызывает только следующий ниже** — Level 1 не трогает Level 3-5.
+
+
+README.md
+---------
+docker compose up -d postgres keycloak redis
+kill -9 $(lsof -t -i:3000)
+
+# Удалить все ключи, начинающиеся с "sess:"
+docker exec redis_session_store redis-cli KEYS "sess:*" | xargs docker exec redis_session_store redis-cli DEL
+
+BFF (Backend-for-Frontend) - принимает запросы от браузера, общается с Keycloak, хранит токены в сессии, проксирует запросы к Protected Service.
+
+
+Protected Service (защищенный-сервис) - при первой загрузке обращиется за JWKS к Keycloak (issuer-uri/JWKS), проверяет JWT локально по JWKS, без обращений к Keycloak.
+
+Keycloak (Identity Provider) - выдает токены, хранит пользователей и роли. 
+
+docker-compose.prod.yml
+-----------------------
+services:
+  postgres:
+    image: postgres:15
+    container_name: keycloak_db_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - keycloak-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6
+    container_name: keycloak_server_prod
+    command: start
+    volumes:
+      - ./themes:/opt/keycloak/themes
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME: ${KC_HOSTNAME:-localhost}
+      KC_HTTP_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - keycloak-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_session_store_prod
+    networks:
+      - keycloak-network
+
+  bff:
+    image: bff-service
+    build:
+      context: ./bff
+      dockerfile: Dockerfile
+    container_name: bff_service_prod
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: ${PORT}
+      SESSION_SECRET: ${SESSION_SECRET}
+      NODE_ENV: production
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM}
+      KEYCLOAK_PUBLIC_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER:-http://localhost:8080/realms/${KEYCLOAK_REALM}}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PROTECTED_SERVICE_URL: http://protected-service:8080
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8082}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8082}
+    depends_on:
+      - keycloak
+      - redis
+    networks:
+      - keycloak-network
+
+  protected-service:
+    build:
+      context: ./protected-service
+      dockerfile: Dockerfile
+    container_name: protected_service_prod
+    ports:
+      - "8083:8080"
+    environment:
+      JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+    depends_on:
+      - keycloak
+    networks:
+      - keycloak-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: react_frontend_prod
+    ports:
+      - "8082:80"
+    depends_on:
+      - bff
+    networks:
+      - keycloak-network
+
+networks:
+  keycloak-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+
+docker-compose.yml
+------------------
+services:
+  postgres:
+    image: postgres:15
+    container_name: keycloak_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - keycloak-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6
+    container_name: keycloak_server
+    command: start-dev
+    volumes:
+      - ./themes:/opt/keycloak/themes
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_HTTP_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - keycloak-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_session_store
+    ports:
+      - "6379:6379"
+    networks:
+      - keycloak-network
+
+  bff:
+    image: bff-service
+    build:
+      context: ./bff
+      dockerfile: Dockerfile.dev
+    container_name: bff_service
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./bff:/app
+      - /app/node_modules
+    environment:
+      PORT: ${PORT}
+      SESSION_SECRET: ${SESSION_SECRET}
+      NODE_ENV: ${NODE_ENV}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_PUBLIC_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      PROTECTED_SERVICE_URL: ${PROTECTED_SERVICE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      TZ: Europe/Moscow
+    depends_on:
+      - keycloak
+      - redis
+    networks:
+      - keycloak-network
+
+  protected-service:
+    build:
+      context: ./protected-service
+      dockerfile: Dockerfile.dev
+    container_name: protected_service
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./protected-service:/app
+      - /app/node_modules
+    environment:
+      JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      TZ: Europe/Moscow
+    depends_on:
+      - keycloak
+    networks:
+      - keycloak-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: react_frontend
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+    depends_on:
+      - bff
+    networks:
+      - keycloak-network
+
+networks:
+  keycloak-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+docs/compose/plans/2026-07-11-security-decorators-refactor.md
+-------------------------------------------------------------
+# Security Decorators & Guard Refactoring Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace route-based security middleware with NestJS decorator-driven guards, simplifying security configuration and making it co-located with controllers.
+
+**Architecture:** Move from a centralized `SecurityMiddleware` that matches routes against a rules table (`routes.ts`) to NestJS-native `@Public()`, `@RequireSession()`, `@RequireCsrf()`, `@Roles()` decorators applied directly on controller methods. A global `AuthGuard` reads these metadata keys via `Reflector` and enforces them.
+
+**Tech Stack:** NestJS, Reflector, `jose` (decodeJwt), Express types
+
+## Global Constraints
+
+- CSRF check compares cookie `XSRF-TOKEN` with header `x-csrf-token` (double-submit pattern)
+- Token expiry check: reject if `exp < now + 30` (30s skew)
+- `@RequireCsrf()` also validates session-level `csrfToken` matches cookie
+- Roles decorator supports `mode: 'any' | 'all'` and `source` (default `'realm'`)
+- `APP_GUARD` providers: ThrottlerGuard first, then AuthGuard (both apply globally)
+- No changes to `CsrfMiddleware` cookie logic except removing session save
+
+---
+
+## Task 1: Create auth decorators
+
+**Covers:** Decorator definitions for Public, RequireSession, RequireCsrf, SkipExpiryCheck, Roles
+
+**Files:**
+- Create: `bff/src/decorators/auth.decorator.ts`
+
+- [ ] **Step 1: Create decorator file**
+
+```typescript
+import { SetMetadata } from '@nestjs/common';
+
+export const IS_PUBLIC_KEY = 'isPublic';
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+
+export const REQUIRE_SESSION = 'requireSession';
+export const RequireSession = () => SetMetadata(REQUIRE_SESSION, true);
+
+export const REQUIRE_CSRF = 'requireCsrf';
+export const RequireCsrf = () => SetMetadata(REQUIRE_CSRF, true);
+
+export const SKIP_EXPIRY_CHECK = 'skipExpiryCheck';
+export const SkipExpiryCheck = () => SetMetadata(SKIP_EXPIRY_CHECK, true);
+
+export const ROLES_KEY = 'roles';
+export const Roles = (
+  roles: string[],
+  options?: { mode?: 'any' | 'all'; source?: string },
+) => SetMetadata(ROLES_KEY, { roles, ...options });
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add bff/src/decorators/auth.decorator.ts
+git commit -m "feat(bff): add auth decorators for guard-based security"
+```
+
+---
+
+## Task 2: Create AuthGuard
+
+**Covers:** Global guard that reads decorator metadata and enforces session, CSRF, expiry, and role checks
+
+**Files:**
+- Create: `bff/src/guards/auth.guard.ts`
+
+- [ ] **Step 1: Create guard file**
+
+```typescript
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { decodeJwt } from 'jose';
+import { Request } from 'express';
+import {
+  IS_PUBLIC_KEY,
+  REQUIRE_SESSION,
+  REQUIRE_CSRF,
+  SKIP_EXPIRY_CHECK,
+  ROLES_KEY,
+} from '../decorators/auth.decorator';
+import { KeycloakJwtPayload } from '../types/keycloak';
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
+    const request = context.switchToHttp().getRequest<Request>();
+    const { session, cookies, headers } = request;
+
+    const requireSession = this.reflector.getAllAndOverride<boolean>(REQUIRE_SESSION, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const requireCsrf = this.reflector.getAllAndOverride<boolean>(REQUIRE_CSRF, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const skipExpiryCheck = this.reflector.getAllAndOverride<boolean>(SKIP_EXPIRY_CHECK, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const rolesMeta = this.reflector.getAllAndOverride<any>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // Session check
+    if (requireSession) {
+      if (!session?.accessToken) {
+        throw new UnauthorizedException('No session');
+      }
+
+      if (!skipExpiryCheck) {
+        try {
+          const payload = decodeJwt(session.accessToken);
+          const now = Math.floor(Date.now() / 1000);
+          if (payload?.exp && payload.exp < now + 30) {
+            throw new UnauthorizedException('Token expired');
+          }
+        } catch {
+          throw new UnauthorizedException('Invalid token');
+        }
+      }
+    }
+
+    // CSRF check
+    if (requireCsrf) {
+      const cookie = cookies?.['XSRF-TOKEN'];
+      const header = headers['x-csrf-token'];
+      if (!cookie || !header || cookie !== header) {
+        throw new ForbiddenException('Invalid CSRF token');
+      }
+    }
+
+    // Roles check
+    if (rolesMeta?.roles?.length) {
+      if (!session?.accessToken) {
+        throw new ForbiddenException('No session');
+      }
+      const payload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
+      const source = rolesMeta.source || 'realm';
+      const userRoles: string[] =
+        source === 'realm'
+          ? payload?.realm_access?.roles || []
+          : payload?.resource_access?.[source]?.roles || [];
+
+      const mode = rolesMeta.mode || 'any';
+      const ok =
+        mode === 'all'
+          ? rolesMeta.roles.every((r: string) => userRoles.includes(r))
+          : rolesMeta.roles.some((r: string) => userRoles.includes(r));
+
+      if (!ok) {
+        throw new ForbiddenException('Insufficient roles');
+      }
+    }
+
+    return true;
+  }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add bff/src/guards/auth.guard.ts
+git commit -m "feat(bff): add global AuthGuard with decorator-based security"
+```
+
+---
+
+## Task 3: Update app.module.ts — register AuthGuard globally
+
+**Covers:** Register AuthGuard as APP_GUARD, remove old middleware references
+
+**Files:**
+- Modify: `bff/src/app.module.ts`
+
+- [ ] **Step 1: Update app.module.ts**
+
+Replace the full file content:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
+import { ThrottlerGuard } from '@nestjs/throttler';
+
+import { AuthGuard } from './guards/auth.guard';
+import { RedisService } from './services/redis.service';
+import { JwksService } from './services/jwks.service';
+import { KeycloakClient } from './services/keycloak-client';
+import { AuthService } from './services/auth.service';
+import { HttpClient } from './services/http-client';
+
+import { AuthController } from './controllers/auth.controller';
+import { ProxyController } from './controllers/proxy.controller';
+import { HealthController } from './controllers/health.controller';
+import { BackchannelController } from './controllers/backchannel.controller';
+
+import { SessionContextInterceptor } from './interceptors/session-context.interceptor';
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    TerminusModule,
+  ],
+  controllers: [AuthController, ProxyController, HealthController, BackchannelController],
+  providers: [
+    RedisService,
+    JwksService,
+    KeycloakClient,
+    AuthService,
+    HttpClient,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
+  ],
+  exports: [RedisService],
+})
+export class AppModule {}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add bff/src/app.module.ts
+git commit -m "feat(bff): register AuthGuard as global APP_GUARD"
+```
+
+---
+
+## Task 4: Update main.ts — remove SecurityMiddleware
+
+**Covers:** Remove SecurityMiddleware import and registration from bootstrap
+
+**Files:**
+- Modify: `bff/src/main.ts`
+
+- [ ] **Step 1: Remove SecurityMiddleware lines**
+
+Remove these two lines:
+- Line 7: `import { SecurityMiddleware } from './middleware/security.middleware';`
+- Lines 70-71: `const sec = app.get(SecurityMiddleware); app.use(sec.use.bind(sec));`
+
+- [ ] **Step 2: Verify remaining content**
+
+The file should retain: NestFactory, ValidationPipe, express, AppModule, config, RedisService, CsrfMiddleware, HttpExceptionFilter, Logger, cookieParser, helmet, session, RedisStore, and the full bootstrap function (minus SecurityMiddleware lines).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add bff/src/main.ts
+git commit -m "feat(bff): remove SecurityMiddleware from bootstrap"
+```
+
+---
+
+## Task 5: Add decorators to AuthController
+
+**Covers:** @Public on login/callback, @RequireSession on /api/me, @RequireSession + @RequireCsrf on logout (returning JSON)
+
+**Files:**
+- Modify: `bff/src/controllers/auth.controller.ts`
+
+- [ ] **Step 1: Add imports**
+
+Add to imports:
+```typescript
+import { Public, RequireSession, RequireCsrf } from '../decorators/auth.decorator';
+```
+
+- [ ] **Step 2: Add @Public() to login and callback**
+
+```typescript
+@Public()
+@Get('login')
+async login(@Req() req: Request, @Res() res: Response) {
+```
+
+```typescript
+@Public()
+@Get('callback')
+async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
+```
+
+- [ ] **Step 3: Add @RequireSession() to /api/me**
+
+```typescript
+@RequireSession()
+@Get('api/me')
+me(@Req() req: Request) {
+```
+
+- [ ] **Step 4: Update logout — add decorators, change to JSON response**
+
+```typescript
+@RequireSession()
+@RequireCsrf()
+@Post('logout')
+async logout(@Req() req: Request, @Res() res: Response) {
+  const { session } = req;
+  const { idToken, refreshToken, userInfo } = session;
+  const userId = userInfo?.sub;
+
+  if (refreshToken) {
+    await this.keycloak.revokeRefreshToken(refreshToken);
+  }
+
+  if (userId && session.id) {
+    await this.authService.unregisterSession(userId, session.id).catch((err: unknown) => {
+      Logger.warn('Auth', `Unregister session failed: ${errorMessage(err)}`);
+    });
+  }
+
+  session.destroy((err: Error | null) => {
+    if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
+    res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+    res.clearCookie('XSRF-TOKEN', { path: '/' });
+    const logoutUrl = idToken ? this.authService.getLogoutUrl(idToken) : '/login';
+    res.json({ logoutUrl });
+  });
+}
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add bff/src/controllers/auth.controller.ts
+git commit -m "feat(bff): add auth decorators to AuthController, logout returns JSON"
+```
+
+---
+
+## Task 6: Add decorators to ProxyController
+
+**Covers:** @RequireSession on class, @RequireCsrf on mutation methods
+
+**Files:**
+- Modify: `bff/src/controllers/proxy.controller.ts`
+
+- [ ] **Step 1: Add imports**
+
+Add to imports:
+```typescript
+import { RequireSession, RequireCsrf } from '../decorators/auth.decorator';
+```
+
+- [ ] **Step 2: Add @RequireSession() at class level**
+
+```typescript
+@Controller('api/service')
+@RequireSession()
+export class ProxyController {
+```
+
+- [ ] **Step 3: Add @RequireCsrf() to POST, PUT, DELETE, PATCH**
+
+```typescript
+@Post('*')
+@RequireCsrf()
+async post(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+```
+
+```typescript
+@Put('*')
+@RequireCsrf()
+async put(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+```
+
+```typescript
+@Delete('*')
+@RequireCsrf()
+async delete(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+```
+
+```typescript
+@Patch('*')
+@RequireCsrf()
+async patch(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add bff/src/controllers/proxy.controller.ts
+git commit -m "feat(bff): add auth decorators to ProxyController"
+```
+
+---
+
+## Task 7: Add @Public() to BackchannelController and HealthController
+
+**Covers:** Both controllers are fully public
+
+**Files:**
+- Modify: `bff/src/controllers/backchannel.controller.ts`
+- Modify: `bff/src/controllers/health.controller.ts`
+
+- [ ] **Step 1: Update BackchannelController**
+
+Add import and decorator:
+```typescript
+import { Controller, Post, Req, Res, Header } from '@nestjs/common';
+import { Public } from '../decorators/auth.decorator';
+```
+
+```typescript
+@Public()
+@Controller()
+export class BackchannelController {
+```
+
+- [ ] **Step 2: Update HealthController**
+
+Add import and decorator:
+```typescript
+import { Controller, Get } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
+import { Public } from '../decorators/auth.decorator';
+```
+
+```typescript
+@Public()
+@SkipThrottle()
+@Controller('health')
+export class HealthController {
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add bff/src/controllers/backchannel.controller.ts bff/src/controllers/health.controller.ts
+git commit -m "feat(bff): mark BackchannelController and HealthController as public"
+```
+
+---
+
+## Task 8: Simplify CsrfMiddleware — remove session save
+
+**Covers:** Remove session.csrfToken write and session.save() from CSRF middleware
+
+**Files:**
+- Modify: `bff/src/middleware/csrf.middleware.ts`
+
+- [ ] **Step 1: Simplify the middleware**
+
+Replace the full file content:
+
+```typescript
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import * as crypto from 'crypto';
+import { config } from '../config/config';
+
+@Injectable()
+export class CsrfMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction): void {
+    if (!req.cookies['XSRF-TOKEN']) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const isProd = config.nodeEnv === 'production';
+
+      res.cookie('XSRF-TOKEN', token, {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'strict',
+        path: '/',
+      });
+    }
+    next();
+  }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add bff/src/middleware/csrf.middleware.ts
+git commit -m "feat(bff): simplify CsrfMiddleware — cookie-only, no session save"
+```
+
+---
+
+## Task 9: Delete old files
+
+**Covers:** Remove routes.ts, security.middleware.ts, security.middleware.spec.ts
+
+**Files:**
+- Delete: `bff/src/config/routes.ts`
+- Delete: `bff/src/middleware/security.middleware.ts`
+- Delete: `bff/src/middleware/security.middleware.spec.ts`
+
+- [ ] **Step 1: Delete files**
+
+```bash
+git rm bff/src/config/routes.ts bff/src/middleware/security.middleware.ts bff/src/middleware/security.middleware.spec.ts
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git commit -m "feat(bff): remove old route-based security middleware"
+```
+
+---
+
+## Task 10: Update client AuthContext — logout via POST
+
+**Covers:** Client logout sends POST to /logout and follows the returned logoutUrl
+
+**Files:**
+- Modify: `client/src/context/AuthContext.tsx`
+
+- [ ] **Step 1: Update logout function**
+
+Replace the logout function:
+
+```typescript
+const logout = async () => {
+  try {
+    const response = await api.post('/logout');
+    window.location.href = response.data.logoutUrl;
+  } catch (error) {
+    window.location.href = '/login';
+  }
+};
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add client/src/context/AuthContext.tsx
+git commit -m "feat(client): logout via POST, follow returned logoutUrl"
+```
+
+---
+
+## Task 11: Verify — build and type-check
+
+**Covers:** Ensure everything compiles
+
+**Files:** None (verification only)
+
+- [ ] **Step 1: Type-check BFF**
+
+```bash
+cd bff && npx tsc --noEmit
+```
+
+Expected: no errors
+
+- [ ] **Step 2: Type-check client**
+
+```bash
+cd client && npx tsc --noEmit
+```
+
+Expected: no errors
+
+- [ ] **Step 3: Run BFF tests (if any exist beyond deleted spec)**
+
+```bash
+cd bff && npx jest --passWithNoTests
+```
+
+Expected: PASS or no tests found
+
+
+client/.dockerignore
+--------------------
+node_modules
+dist
+.git
+.env
+
+
+client/Dockerfile
+-----------------
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+# Copy the custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+
+client/Dockerfile.dev
+---------------------
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+
+client/index.html
+-----------------
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Keycloak Auth Demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+client/nginx.conf
+-----------------
+server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}
+
+
+client/package.json
+-------------------
+{
+  "name": "keycloak-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.2.0",
+    "vite": "^4.4.0"
+  }
+}
+
+
+client/tsconfig.json
+--------------------
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"]
+}
+
+
+client/vite.config.ts
+---------------------
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 8082,
+    host: true,
+  }
+})
+
+
+client/src/App.tsx
+------------------
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import api from './api/api';
+import Home from './pages/Home';
+import Service from './pages/Service';
+
+const Navigation = () => {
+  const logout = async () => {
+    try {
+      const response = await api.post('/logout');
+      window.location.href = response.data.logoutUrl;
+    } catch {
+      window.location.href = '/login';
+    }
+  };
+
+  return (
+    <div className="nav">
+      <Link to="/" className="btn">Home</Link>
+      <Link to="/service" className="btn">Service</Link>
+      <button onClick={logout} className="btn btn-danger">Logout</button>
+    </div>
+  );
+};
+
+const App = () => (
+  <Router>
+    <Navigation />
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/service" element={<Service />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  </Router>
+);
+
+export default App;
+
+
+client/src/index.css
+--------------------
+body {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #242424;
+  color: white;
+}
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.nav {
+  margin-bottom: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.btn-danger {
+  background: #ff4655;
+}
+
+.card {
+  background: #1a1a1a;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  margin-top: 1rem;
+}
+
+.status {
+  font-weight: bold;
+  color: #4caf50;
+}
+
+
+client/src/main.tsx
+-------------------
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+
+
+client/src/pages/Home.tsx
+-------------------------
+import React, { useEffect, useState } from 'react';
+import api from '../api/api';
+
+const Home = () => {
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    api.get('/api/me')
+      .then(res => setProfile(res.data.user))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h1>User Profile</h1>
+      <div className="card">
+        <p className="status">Authenticated</p>
+        <p><strong>Username:</strong> {profile?.preferred_username || 'N/A'}</p>
+        <p><strong>Email:</strong> {profile?.email || 'N/A'}</p>
+        <p><strong>Name:</strong> {profile?.name || 'N/A'}</p>
+      </div>
+    </div>
+  );
+};
+
+export default Home;
+
+
+client/src/pages/Protected.tsx
+------------------------------
+import React, { useEffect, useState } from 'react';
+import api from '../api/api';
+
+const Protected = () => {
+  const [getData, setGetData] = useState<any>(null);
+  const [postData, setPostData] = useState<any>(null);
+  const [getError, setGetError] = useState<string | null>(null);
+  const [postError, setPostError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/api/hello')
+      .then(res => setGetData(res.data))
+      .catch(err => setGetError(err.response?.data?.message || 'GET failed'));
+  }, []);
+
+  const testPost = async () => {
+    setPostError(null);
+    try {
+      const res = await api.post('/api/hello', { test: 'data', timestamp: new Date().toISOString() });
+      setPostData(res.data);
+    } catch (err: any) {
+      setPostError(err.response?.data?.message || 'POST failed');
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+      <h1>Protected Page</h1>
+
+      <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ccc', borderRadius: '8px' }}>
+        <h3>GET Test (Session Guard)</h3>
+        {getError ? (
+          <p style={{ color: 'red' }}>{getError}</p>
+        ) : (
+          <pre style={{ background: '#f4f4f4', padding: '10px' }}>{JSON.stringify(getData, null, 2)}</pre>
+        )}
+      </div>
+
+      <div style={{ padding: '15px', border: '1px solid #ccc', borderRadius: '8px' }}>
+        <h3>POST Test (Session + CSRF Guard)</h3>
+        <button
+          onClick={testPost}
+          style={{ padding: '10px 20px', cursor: 'pointer', marginBottom: '10px' }}
+        >
+          Send Protected POST Request
+        </button>
+        {postError ? (
+          <p style={{ color: 'red' }}>{postError}</p>
+        ) : (
+          <pre style={{ background: '#f4f4f4', padding: '10px' }}>{JSON.stringify(postData, null, 2)}</pre>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Protected;
+
+
+client/src/pages/Service.tsx
+----------------------------
+import React, { useEffect, useState } from 'react';
+import api from '../api/api';
+
+const Service = () => {
+  const [serviceData, setServiceData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/api/service')
+      .then(res => setServiceData(res.data))
+      .catch(err => setError(err.response?.data?.message || 'Failed to fetch data from the protected service'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+        <h1 style={{ color: '#646cff' }}>Loading Protected Service...</h1>
+        <p>Verifying session and fetching data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+      <h1 style={{ color: '#646cff' }}>{serviceData?.service || 'Protected Service'}</h1>
+
+      <div className="card" style={{ maxWidth: '600px', margin: '20px auto', textAlign: 'left' }}>
+        <h3 style={{ borderBottom: '1px solid #333', paddingBottom: '10px' }}>
+          User Information (Verified by Service)
+        </h3>
+        <div style={{ marginTop: '15px', fontSize: '14px', lineHeight: '1.6' }}>
+          <p><strong>Username:</strong> {serviceData?.user?.preferred_username}</p>
+          <p><strong>Email:</strong> {serviceData?.user?.email}</p>
+          <p><strong>Subject (ID):</strong> {serviceData?.user?.sub}</p>
+          <p><strong>Service Message:</strong> <span style={{ color: '#4caf50' }}>{serviceData?.message}</span></p>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ color: 'red', marginTop: '20px' }}>
+          <p><strong>Error:</strong> {error}</p>
+        </div>
+      )}
+
+      <div style={{ marginTop: '30px' }}>
+        <p style={{ opacity: 0.7 }}>This data is fetched via BFF Proxy and verified by the downstream service using JWT.</p>
+      </div>
+    </div>
+  );
+};
+
+export default Service;
+
+
+client/src/api/api.ts
+---------------------
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  withCredentials: true,
+});
+
+// CSRF-токен
+api.interceptors.request.use((config) => {
+  const method = config.method?.toUpperCase();
+  if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+    const csrfToken = match ? decodeURIComponent(match[1]) : null;
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  return config;
+});
+
+// 401 → сразу на логин
+let isLoggingOut = false;
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401 && !isLoggingOut) {
+      isLoggingOut = true;
+      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/login`;
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+
+protected-service/Dockerfile
+----------------------------
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 8080
+CMD ["node", "index.js"]
+
+
+protected-service/Dockerfile.dev
+--------------------------------
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+EXPOSE 8080
+CMD ["node", "--watch", "index.js"]
+
+
+protected-service/index.js
+--------------------------
+const express = require('express');
+const { createRemoteJWKSet, jwtVerify } = require('jose');
+
+const app = express();
+const port = process.env.PORT || 8080;
+const JWKS_URL = process.env.JWKS_URL;
+const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER;
+const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID;
+
+if (!JWKS_URL) {
+  console.error('JWKS_URL environment variable is required');
+  process.exit(1);
+}
+if (!KEYCLOAK_ISSUER) {
+  console.error('KEYCLOAK_ISSUER environment variable is required');
+  process.exit(1);
+}
+if (!KEYCLOAK_CLIENT_ID) {
+  console.error('KEYCLOAK_CLIENT_ID environment variable is required');
+  process.exit(1);
+}
+
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
+
+const GREEN = '\x1b[32m';
+const YELLOW = '\x1b[33m';
+const RED = '\x1b[31m';
+const GRAY = '\x1b[90m';
+const CYAN = '\x1b[36m';
+const FIELD = '\x1b[38;5;250m';
+const RESET = '\x1b[0m';
+
+function timestamp() {
+  const now = new Date();
+  return now.toISOString().slice(0, 10) + ' ' + now.toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function formatFields(fields) {
+  if (!fields) return '';
+  return ' ' + Object.entries(fields)
+    .map(([k, v]) => `${FIELD}${k}=${v}${RESET}`)
+    .join(' ');
+}
+
+function log(level, msg, fields) {
+  const ts = GRAY + timestamp() + RESET;
+  const svc = GREEN + '[ProtectedService]' + RESET;
+  const lvl = level === 'INFO' ? GREEN + '[INFO]' + RESET
+            : level === 'WARN' ? YELLOW + '[WARN]' + RESET
+            : level === 'DEBUG' ? GRAY + '[DEBUG]' + RESET
+            : RED + '[ERROR]' + RESET;
+  console.log(`${ts} ${svc} ${lvl} ${msg}${formatFields(fields)}`);
+}
+
+function decodeToken(token) {
+  try {
+    return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+  } catch {
+    return null;
+  }
+}
+
+app.get('/', async (req, res) => {
+  log('DEBUG', `${req.method} ${req.path}`);
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    log('WARN', 'Missing Bearer Token', { method: req.method, path: req.path });
+    return res.status(401).send('Unauthorized: Missing Bearer Token');
+  }
+
+  const token = authHeader.split(' ')[1];
+  const claims = decodeToken(token);
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: KEYCLOAK_ISSUER,
+      audience: KEYCLOAK_CLIENT_ID,
+    });
+    log('INFO', `JWT verification OK`, {
+      user: payload.preferred_username || payload.email || payload.sub,
+      exp: new Date(payload.exp * 1000).toLocaleTimeString('en-GB', { hour12: false }),
+      iss: payload.iss || '-',
+      aud: Array.isArray(payload.aud) ? payload.aud.join(',') : (payload.aud || '-'),
+      method: req.method,
+      path: req.path,
+    });
+
+    res.json({
+      service: 'Protected Service',
+      user: payload,
+      message: 'Access granted to the protected resource'
+    });
+  } catch (e) {
+    const now = new Date();
+    const tokenExp = claims?.exp ? new Date(claims.exp * 1000) : null;
+    const tokenIat = claims?.iat ? new Date(claims.iat * 1000) : null;
+    const tokenAud = Array.isArray(claims?.aud) ? claims.aud.join(',') : (claims?.aud || '-');
+    const tokenIss = claims?.iss || '-';
+
+    log('ERROR', `JWT verification failed`, {
+      reason: e.message,
+      token_iss: tokenIss,
+      expected_iss: KEYCLOAK_ISSUER,
+      iss_match: tokenIss === KEYCLOAK_ISSUER ? 'YES' : 'NO',
+      token_aud: tokenAud,
+      expected_aud: KEYCLOAK_CLIENT_ID,
+      aud_match: tokenAud === KEYCLOAK_CLIENT_ID ? 'YES' : 'NO',
+      token_exp: tokenExp ? tokenExp.toISOString() : '?',
+      token_iat: tokenIat ? tokenIat.toISOString() : '?',
+      now: now.toISOString(),
+      expired: tokenExp ? (now > tokenExp ? 'YES' : 'NO') : '?',
+      token_age_sec: tokenIat ? Math.round((now - tokenIat) / 1000) : '?',
+      user: claims?.preferred_username || claims?.email || claims?.sub || '?',
+      alg: claims?.alg || '?',
+      method: req.method,
+      path: req.path,
+    });
+    res.status(401).send('Unauthorized: Invalid Token');
+  }
+});
+
+app.listen(port, () => {
+  log('INFO', `Protected Service listening at http://localhost:${port}`, { port: String(port), jwks: JWKS_URL });
+});
+
+
+protected-service/package.json
+------------------------------
+{
+  "name": "protected-service-stub",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "jose": "^5.2.0"
+  }
+}
+
+
+.vscode/launch.json
+-------------------
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug BFF",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "cwd": "${workspaceFolder}/bff",
+      "console": "integratedTerminal",
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3000",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "KEYCLOAK_ISSUER": "http://localhost:8080/realms/TestRealm",
+        "KEYCLOAK_PUBLIC_ISSUER": "http://localhost:8080/realms/TestRealm",
+        "KEYCLOAK_CLIENT_ID": "bff-client",
+        "KEYCLOAK_CLIENT_SECRET": "AQce4SdHum6sxqnreawz3ArsKm4tIx47",
+        "SESSION_SECRET": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "FRONTEND_URL": "http://localhost:8082",
+        "PROTECTED_SERVICE_URL": "http://localhost:8083"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Protected Service",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "cwd": "${workspaceFolder}/protected-service",
+      "console": "integratedTerminal",
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "PORT": "8080",
+        "JWKS_URL": "http://localhost:8080/realms/TestRealm/protocol/openid-connect/certs",
+        "KEYCLOAK_ISSUER": "http://localhost:8080/realms/TestRealm",
+        "KEYCLOAK_CLIENT_ID": "bff-client"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All (BFF + Protected)",
+      "configurations": ["Debug BFF", "Debug Protected Service"]
+    }
+  ]
+}
+
+.vscode/settings.json
+---------------------
+{
+  "js/ts.experimental.useTsgo": false,
+  "cSpell.words": [
+    "Backchannel"
+  ]
+}
+
+bff/.dockerignore
+-----------------
+node_modules
+dist
+.git
+.env
+
+
+bff/.env
+--------
+# === Keycloak ===
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=admin
+KEYCLOAK_REALM=TestRealm
+KEYCLOAK_CLIENT_ID=bff-client
+KEYCLOAK_CLIENT_SECRET=AQce4SdHum6sxqnreawz3ArsKm4tIx47
+KC_HOSTNAME=localhost
+KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
+KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
+
+# === Database ===
+POSTGRES_DB=keycloak
+POSTGRES_USER=keycloak
+POSTGRES_PASSWORD=password
+
+# === Redis ===
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# === BFF ===
+PORT=3000
+NODE_ENV=development
+SESSION_SECRET=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+OAUTH_STATE_TTL=600
+FRONTEND_URL=http://localhost:8082
+PROTECTED_SERVICE_URL=http://localhost:8083
+
+# === Frontend ===
+VITE_API_URL=http://localhost:3000
+
+
+bff/.prettierrc
+---------------
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "semi": true
+}
+
+
+bff/Dockerfile
+--------------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+
+USER appuser
+
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:3000/health || exit 1
+CMD ["node", "dist/main"]
+
+
+bff/Dockerfile.dev
+------------------
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+EXPOSE 3000
+CMD ["npm", "run", "start:dev"]
+
+
+bff/SESSION_ARCHITECTURE.md
+---------------------------
+# Архитектура сессий
+
+## Где хранится сессия
+
+### 1. Кука на клиенте (`connect.sid`)
+- Содержит **только ID сессии** (не данные)
+- Имя: `connect.sid`
+- Настройки: `httpOnly: true`, `secure: true` (prod), `sameSite: 'lax'`
+
+### 2. Данные сессии в Redis (автоматически)
+- Ключ: `sess:<sessionId>`
+- Хранит: `connect-redis` автоматически при вызове `session.save()`
+- Содержит: `{ accessToken, refreshToken, idToken, userInfo, oauth }`
+
+```typescript
+// src/main.ts:43-56 — единственная необходимая настройка
+session({
+  store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
+  secret: config.session.secret,
+  // ...
+})
+```
+
+`connect-redis` сериализует весь объект сессии в JSON и кладёт в Redis. Ручной код не нужен.
+
+### 3. Индекс сессий пользователя в Redis (вручную)
+- Ключ: `user_sessions:<userId>` (Redis Set)
+- Хранит: `RedisService.addUserSession()`
+- Содержит: список session ID для пользователя
+
+```typescript
+// src/services/redis.service.ts:30-32
+async addUserSession(userId: string, sessionId: string): Promise<void> {
+  await this.client.sAdd(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
+}
+```
+
+Это наш код — нужен для массового logout (удалить все сессии пользователя).
+
+## Поток данных
+
+```
+1. GET /login
+   → express-session генерирует session.id
+   → кука connect.sid=sid123 отправляется клиенту
+
+2. GET /callback?code=...
+   → session.regenerate() (новый session.id)
+   → session.accessToken = "eyJ..."
+   → session.refreshToken = "eyJ..."
+   → session.userInfo = { sub: "user-123", ... }
+   → session.save() ← connect-redis кладёт всё в Redis: sess:sid123 = {...}
+   → RedisService.addUserSession("user-123", "sid123") ← добавляет в user_sessions:user-123
+
+3. GET /api/me
+   → кука connect.sid=sid123
+   → express-session достаёт sess:sid123 из Redis
+   → req.session.accessToken, req.session.userInfo доступны
+
+4. POST /logout
+   → RedisService.removeUserSession("user-123", "sid123") ← удаляет из индекса
+   → session.destroy() ← express-session удаляет sess:sid123 из Redis
+```
+
+## Итого
+
+| Что | Кто хранит | Ключ в Redis | Значение |
+|-----|-----------|--------------|----------|
+| Данные сессии (токены, пользователь) | `connect-redis` (автоматически) | `sess:<sessionId>` | JSON со всеми полями сессии |
+| Индекс сессий пользователя | `RedisService` (вручную) | `user_sessions:<userId>` | Set с session ID |
+
+- **`connect-redis`** — хранит данные сессии автоматически
+- **`RedisService`** — управляет индексом (какие сессии у пользователя) для массовых операций
+
+
+bff/eslint.config.js
+--------------------
+const tseslint = require('typescript-eslint');
+const prettier = require('eslint-config-prettier');
+
+module.exports = tseslint.config(
+  ...tseslint.configs.recommended,
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
+  },
+  prettier,
+);
+
+
+bff/jest.config.js
+------------------
+/** @type {import('ts-jest').JestConfigWithTsJest} */
+module.exports = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: 'src',
+  testRegex: '.*\\.spec\\.ts$',
+  transform: {
+    '^.+\\.ts$': 'ts-jest',
+  },
+  collectCoverageFrom: [
+    'controllers/**/*.ts',
+    'services/**/*.ts',
+    'middleware/**/*.ts',
+    'guards/**/*.ts',
+    'interceptors/**/*.ts',
+    'filters/**/*.ts',
+    'shared/**/*.ts',
+    'config/**/*.ts',
+    '!**/*.dto.ts',
+    '!**/*.d.ts',
+  ],
+  coverageDirectory: '../coverage',
+  testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test-setup.ts'],
+};
+
+
+bff/nest-cli.json
+-----------------
+{
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+
+
+bff/package.json
+----------------
+{
+  "name": "nestjs-keycloak-bff",
+  "version": "0.0.1",
+  "description": "NestJS BFF with Keycloak Auth",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/terminus": "^10.0.0",
+    "axios": "^1.7.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "connect-redis": "^7.1.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.0",
+    "express-session": "^1.17.3",
+    "helmet": "^8.2.0",
+    "jose": "^5.2.0",
+    "redis": "^4.6.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.4.22",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express-session": "^1.17.7",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^29.0.0",
+    "prettier": "^3.9.4",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.63.0"
+  }
+}
+
+
+bff/tsconfig.json
+-----------------
+{
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["jest", "node"]
+  }
+}
+
+
+bff/src/app.module.ts
+---------------------
+import { Module } from '@nestjs/common';
+import { TerminusModule } from '@nestjs/terminus';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+
+import { AuthModule } from './auth/auth.module';
+import { GatewayModule } from './gateway/gateway.module';
+import { SessionModule } from './session/session.module';
+import { RedisModule } from './redis/redis.module';
+import { SharedModule } from './shared/shared.module';
+
+import { SessionContextInterceptor } from './shared/interceptors/session-context.interceptor';
+import { AuthGuard } from './auth/guards/auth.guard';
+
+import { HealthController } from './shared/controllers/health.controller';
+
+@Module({
+  imports: [
+    TerminusModule,
+    SharedModule,
+    RedisModule,
+    SessionModule,
+    AuthModule,
+    GatewayModule,
+  ],
+  controllers: [HealthController],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
+})
+export class AppModule {}
+
+
+bff/src/main.ts
+---------------
+import { NestFactory } from '@nestjs/core';
+import express from 'express';
+import { AppModule } from './app.module';
+import { config } from './config/config';
+import { RedisService } from './redis/services/redis.service';
+import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
+import { Logger } from './shared/logger/logger';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+
+import session from 'express-session';
+import RedisStore from 'connect-redis';
+import { ValidationPipe } from '@nestjs/common';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Глобальная валидация
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // удаляет поля без декораторов в DTO
+      forbidNonWhitelisted: true, // ошибка, если есть лишние поля
+      transform: true, // преобразует строки в числа, boolean и т.д.
+    }),
+  );
+
+  const redis = app.get(RedisService);
+
+  // Trust proxy (behind nginx)
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // Security
+  app.use(helmet());
+  app.use(cookieParser());
+
+  // Body parsers
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // Global error handler
+  app.useGlobalFilters(new HttpExceptionFilter());
+
+  const isProd = config.isProduction;
+
+  // Session with Redis store
+  app.use(
+    session({
+      store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
+      secret: config.session.secret,
+      name: config.session.cookieName,
+      resave: false,
+      saveUninitialized: false,
+      rolling: true,
+      cookie: {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: config.session.ttl * 1000,
+      },
+    }),
+  );
+
+  // CORS
+  app.enableCors({
+    origin: config.corsOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
+  // Graceful shutdown
+  app.enableShutdownHooks();
+
+  await app.listen(config.port);
+  Logger.info('App', `Running on http://localhost:${config.port}`);
+}
+
+bootstrap();
+
+
+bff/src/test-setup.ts
+---------------------
+process.env.SESSION_SECRET = 'test-secret-key-that-is-at-least-32-characters-long-for-testing';
+process.env.NODE_ENV = 'test';
+process.env.KEYCLOAK_ISSUER = 'http://localhost:8080/realms/TestRealm';
+process.env.KEYCLOAK_CLIENT_ID = 'bff-client';
+process.env.KEYCLOAK_CLIENT_SECRET = 'test-secret';
+process.env.REDIS_HOST = 'localhost';
+process.env.REDIS_PORT = '6379';
+process.env.KC_HOSTNAME = 'keycloak';
+
+
+bff/src/gateway/gateway.module.ts
+---------------------------------
+import { Module } from '@nestjs/common';
+import { GatewayController } from './controllers/gateway.controller';
+import { HttpClient } from './services/http-client.service';
+import { AxiosHttpClient } from './services/axios-http-client.service';
+import { AuthModule } from '../auth/auth.module';
+import { SessionModule } from '../session/session.module';
+
+@Module({
+  imports: [AuthModule, SessionModule],
+  controllers: [GatewayController],
+  providers: [HttpClient, AxiosHttpClient],
+  exports: [HttpClient],
+})
+export class GatewayModule {}
+
+
+bff/src/gateway/services/axios-http-client.service.ts
+-----------------------------------------------------
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import { AuthService } from '../../auth/services/auth.service';
+import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
+import { SessionService } from '../../session/services/session.service';
+import { Logger } from '../../shared/logger/logger';
+import { errorMessage } from '../../shared/utils/utils';
+import { isKeycloakErrorBody } from '../../shared/utils/is-keycloak-error-body';
+
+@Injectable()
+export class AxiosHttpClient {
+  readonly client: AxiosInstance;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly refreshLock: TokenRefreshLock,
+    private readonly sessionService: SessionService,
+  ) {
+    this.client = axios.create();
+    this.client.interceptors.request.use((cfg) => this.attachToken(cfg));
+    this.client.interceptors.response.use(
+      (res) => res,
+      (err) => this.handleResponseError(err),
+    );
+  }
+
+  private attachToken(cfg: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
+    let session;
+    try {
+      session = this.sessionService.get();
+    } catch {
+      return cfg;
+    }
+    cfg.headers.Authorization = `Bearer ${session.auth.tokens.accessToken}`;
+    return cfg;
+  }
+
+  private async handleResponseError(error: AxiosError) {
+    try {
+      await this.refreshTokens(error);
+      return await this.client(error.config as InternalAxiosRequestConfig);
+    } catch (err) {
+      if (this.isInvalidGrant(err)) {
+        Logger.error('HttpClient', 'invalid_grant — destroying session');
+        await this.destroySession();
+        throw new UnauthorizedException('Session expired');
+      }
+      throw error;
+    }
+  }
+
+  private async refreshTokens(error: AxiosError): Promise<void> {
+    if (error.response?.status !== 401) throw error;
+    if (!error.config || error.config._retry) throw error;
+
+    const session = this.sessionService.get();
+    error.config._retry = true;
+    const reqCfg = error.config;
+
+    const acquired = await this.refreshLock.acquire(session.id);
+
+    if (!acquired) {
+      await this.refreshLock.waitAndRetry(session.id);
+      await this.sessionService.reload(session);
+      this.applyToken(session.auth.tokens.accessToken, reqCfg);
+      return;
+    }
+
+    try {
+      Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
+      const newTokens = await this.authService.refreshTokens(session);
+      this.applyToken(newTokens.accessToken, reqCfg);
+      Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
+    } finally {
+      await this.refreshLock.release(session.id);
+    }
+  }
+
+  private async destroySession(): Promise<void> {
+    try {
+      const session = this.sessionService.get();
+      await this.sessionService.destroy(session);
+    } catch (innerErr: unknown) {
+      Logger.error('HttpClient', `Failed to destroy session: ${errorMessage(innerErr)}`);
+    }
+  }
+
+  private isInvalidGrant(error: unknown): boolean {
+    if (!(error instanceof AxiosError)) return false;
+    if (error.response?.status !== 400) return false;
+    const { data } = error.response;
+    return isKeycloakErrorBody(data) && data.error === 'invalid_grant';
+  }
+
+  private applyToken(accessToken: string, reqCfg: InternalAxiosRequestConfig): void {
+    reqCfg.headers.Authorization = `Bearer ${accessToken}`;
+  }
+}
+
+
+bff/src/gateway/services/http-client.service.ts
+-----------------------------------------------
+import { Injectable } from '@nestjs/common';
+import { AxiosHttpClient } from './axios-http-client.service';
+
+@Injectable()
+export class HttpClient {
+  constructor(private axios: AxiosHttpClient) {}
+
+  async get<T, P>(url: string, params?: P): Promise<T> {
+    const res = await this.axios.client.get<T>(url, { params });
+    return res.data;
+  }
+
+  async post<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.axios.client.post<T>(url, data);
+    return res.data;
+  }
+
+  async put<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.axios.client.put<T>(url, data);
+    return res.data;
+  }
+
+  async delete<T>(url: string): Promise<T> {
+    const res = await this.axios.client.delete<T>(url);
+    return res.data;
+  }
+
+  async patch<T, D>(url: string, data?: D): Promise<T> {
+    const res = await this.axios.client.patch<T>(url, data);
+    return res.data;
+  }
+}
+
+
+bff/src/gateway/controllers/gateway.controller.ts
+-------------------------------------------------
+import { Controller, Get, Post, Put, Delete, Patch, Req, Param } from '@nestjs/common';
+import { Request } from 'express';
+import { HttpClient } from '../services/http-client.service';
+import { config } from '../../config/config';
+
+@Controller('api/service')
+export class GatewayController {
+  constructor(private http: HttpClient) {}
+
+  @Get()
+  async getRoot() {
+    return this.http.get(`${config.protectedServiceUrl}/`);
+  }
+
+  @Get('*')
+  async get(@Param('0') path: string) {
+    return this.http.get(`${config.protectedServiceUrl}/${path}`);
+  }
+
+  @Post('*')
+  async post(@Param('0') path: string, @Req() req: Request) {
+    return this.http.post(`${config.protectedServiceUrl}/${path}`, req.body);
+  }
+
+  @Put('*')
+  async put(@Param('0') path: string, @Req() req: Request) {
+    return this.http.put(`${config.protectedServiceUrl}/${path}`, req.body);
+  }
+
+  @Delete('*')
+  async delete(@Param('0') path: string) {
+    return this.http.delete(`${config.protectedServiceUrl}/${path}`);
+  }
+
+  @Patch('*')
+  async patch(@Param('0') path: string, @Req() req: Request) {
+    return this.http.patch(`${config.protectedServiceUrl}/${path}`, req.body);
+  }
+}
+
+
+bff/src/types/auth-session.interface.ts
+---------------------------------------
+export interface SessionUser {
+  id: string;
+  username: string;
+  email: string;
+  roles: string[];
+}
+
+export interface SessionTokens {
+  accessToken: string;
+  refreshToken: string;
+  idToken: string;
+}
+
+export interface AuthSession {
+  user: SessionUser;
+  tokens: SessionTokens;
+}
+
+
+bff/src/types/axios.d.ts
+------------------------
+import 'axios';
+
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    _retry?: boolean;
+  }
+}
+
+
+bff/src/types/keycloak.d.ts
+---------------------------
+import type { JWTPayload } from 'jose';
+
+export interface TokenSet {
+  access_token: string;
+  refresh_token: string;
+  id_token: string;
+}
+
+export interface KeycloakJwtPayload extends JWTPayload {
+  email?: string;
+  preferred_username?: string;
+  name?: string;
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, { roles?: string[] }>;
+}
+
+export interface KeycloakErrorBody {
+  error?: string;
+  error_description?: string;
+}
+
+
+bff/src/types/session.d.ts
+--------------------------
+import 'express-session';
+import type { Session, SessionData } from 'express-session';
+import { AuthSession } from './auth-session.interface';
+
+declare module 'express-session' {
+  interface SessionData {
+    auth?: AuthSession;
+  }
+}
+
+export type RawSession = Session & Partial<SessionData>;
+export type AuthenticatedSession = Session & { auth: AuthSession };
+
+
+bff/src/redis/redis.module.ts
+-----------------------------
+import { Module, Global } from '@nestjs/common';
+import { RedisService } from './services/redis.service';
+
+@Global()
+@Module({
+  providers: [RedisService],
+  exports: [RedisService],
+})
+export class RedisModule {}
+
+
+bff/src/redis/services/redis.service.ts
+---------------------------------------
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { createClient, RedisClientType } from 'redis';
+import { config } from '../../config/config';
+import { RedisKeys } from '../constants/redis-key-prefixes';
+import { Logger } from '../../shared/logger/logger';
+
+@Injectable()
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  public readonly client: RedisClientType;
+
+  constructor() {
+    const useTls = config.redis.url.startsWith('rediss://');
+
+    this.client = createClient({
+      url: config.redis.url,
+      password: config.redis.password,
+      socket: useTls ? { tls: true } : undefined,
+    });
+
+    this.client.on('error', (err) => Logger.error('Redis', err.message));
+    this.client.on('connect', () => Logger.info('Redis', 'Connected'));
+  }
+
+  async onModuleInit() {
+    await this.client.connect();
+  }
+
+  async onModuleDestroy() {
+    await this.client.disconnect();
+  }
+
+  // ── OAuth state (pre-auth, no session) ──────────────────────────
+
+  async setOAuthState(state: string, codeVerifier: string): Promise<void> {
+    const key = RedisKeys.oauthState(state);
+    await this.client.set(key, codeVerifier, { EX: config.session.oauthStateTtl });
+  }
+
+  async getOAuthState(state: string): Promise<string | null> {
+    const key = RedisKeys.oauthState(state);
+    return this.client.get(key);
+  }
+
+  async deleteOAuthState(state: string): Promise<void> {
+    const key = RedisKeys.oauthState(state);
+    await this.client.del(key);
+  }
+
+  // ── User sessions ──────────────────────────────────────────────
+
+  async addUserSession(userId: string, sessionId: string): Promise<void> {
+    const key = RedisKeys.userSessions(userId);
+    const pipeline = this.client.multi();
+    pipeline.sAdd(key, sessionId);
+    pipeline.expire(key, config.session.ttl);
+    await pipeline.exec();
+  }
+
+  async removeUserSession(userId: string, sessionId: string): Promise<void> {
+    await this.client.sRem(RedisKeys.userSessions(userId), sessionId);
+  }
+
+  async getUserSessions(userId: string): Promise<string[]> {
+    return this.client.sMembers(RedisKeys.userSessions(userId));
+  }
+
+  async deleteUserSessions(userId: string): Promise<void> {
+    const sessionIds = await this.getUserSessions(userId);
+    for (const sid of sessionIds) {
+      await this.client.del(`${config.session.prefix}${sid}`);
+    }
+    await this.client.del(RedisKeys.userSessions(userId));
+  }
+
+  async refreshUserSessionTtl(userId: string): Promise<void> {
+    await this.client.expire(RedisKeys.userSessions(userId), config.session.ttl);
+  }
+
+  async refreshSessionStoreTtl(sessionId: string): Promise<void> {
+    await this.client.expire(`${config.session.prefix}${sessionId}`, config.session.ttl);
+  }
+}
+
+
+bff/src/redis/constants/redis-key-prefixes.ts
+---------------------------------------------
+export const RedisKeys = {
+  userSessions: (userId: string) => `user_sessions:${userId}`,
+  refreshLock: (sessionId: string) => `refresh_lock:${sessionId}`,
+  replay: (jti: string) => `replay:${jti}`,
+  oauthState: (state: string) => `oauth_state:${state}`,
+} as const;
+
+
+bff/src/config/config.ts
+------------------------
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret || sessionSecret.length < 32) {
+  throw new Error(
+    'SESSION_SECRET must be >= 32 chars. Generate: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+}
+
+const port = parseInt(process.env.PORT || '3000', 10);
+if (Number.isNaN(port)) {
+  throw new Error('PORT must be a number');
+}
+
+const sessionTtl = parseInt(process.env.SESSION_TTL || '86400', 10);
+if (Number.isNaN(sessionTtl)) {
+  throw new Error('SESSION_TTL must be a number');
+}
+
+const DEFAULT_FRONTEND = 'http://localhost:8082';
+
+const nodeEnv = process.env.NODE_ENV || 'development';
+
+const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET || '';
+if (nodeEnv === 'production' && !clientSecret) {
+  throw new Error('KEYCLOAK_CLIENT_SECRET is required in production');
+}
+
+export const config = {
+  nodeEnv,
+  isProduction: nodeEnv === 'production',
+  port,
+  frontendUrl: process.env.FRONTEND_URL || DEFAULT_FRONTEND,
+  protectedServiceUrl: process.env.PROTECTED_SERVICE_URL || 'http://protected-service:8080',
+  corsOrigins: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
+    : [process.env.FRONTEND_URL || DEFAULT_FRONTEND],
+  session: {
+    secret: sessionSecret,
+    cookieName: process.env.SESSION_COOKIE_NAME || 'connect.sid',
+    prefix: process.env.SESSION_PREFIX || 'sess:',
+    ttl: sessionTtl,
+    oauthStateTtl: parseInt(process.env.OAUTH_STATE_TTL || '600', 10),
+  },
+  keycloak: {
+    issuer: process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
+    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'bff-client',
+    clientSecret,
+    redirectUri: process.env.KEYCLOAK_REDIRECT_URI || 'http://localhost:3000/callback',
+    logoutRedirectUri: process.env.KEYCLOAK_LOGOUT_REDIRECT_URI || `http://localhost:${port}/login`,
+  },
+  redis: {
+    url:
+      process.env.REDIS_URL ||
+      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`,
+    password: process.env.REDIS_PASSWORD || undefined,
+  },
+} as const;
+
+
+bff/src/shared/request-context.ts
+---------------------------------
+import { AsyncLocalStorage } from 'async_hooks';
+import { Request } from 'express';
+
+export interface RequestCtx {
+  req: Request;
+}
+
+export const requestContext = new AsyncLocalStorage<RequestCtx>();
+
+
+bff/src/shared/shared.module.ts
+-------------------------------
+import { Module, Global } from '@nestjs/common';
+import { HttpExceptionFilter } from './filters/http-exception.filter';
+
+@Global()
+@Module({
+  providers: [HttpExceptionFilter],
+  exports: [HttpExceptionFilter],
+})
+export class SharedModule {}
+
+
+bff/src/shared/filters/http-exception.filter.ts
+-----------------------------------------------
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { AxiosError } from 'axios';
+import { Logger } from '../logger/logger';
+
+@Catch()
+export class HttpExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const res = ctx.getResponse<Response>();
+    const req = ctx.getRequest<Request>();
+
+    let status: number;
+    let message: string | string[] = 'Internal server error';
+
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const resp = exception.getResponse();
+      if (typeof resp === 'string') {
+        message = resp;
+      } else if (resp && typeof resp === 'object' && 'message' in resp) {
+        message = (resp as { message?: string | string[] }).message || 'Error';
+      }
+    } else if (exception instanceof AxiosError && exception.response) {
+      status = exception.response.status;
+      const data = exception.response.data as Record<string, unknown> | undefined;
+      message = String(
+        data?.error_description || data?.message || data?.error || exception.response.statusText,
+      );
+    } else {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    Logger.error('Filter', `${req.method} ${req.url} → ${status}`, {
+      error: exception instanceof Error ? exception.message : String(exception),
+    });
+
+    res.status(status).json({
+      statusCode: status,
+      message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+
+bff/src/shared/logger/logger.ts
+-------------------------------
+import { config } from '../../config/config';
+
+const RESET = '\x1b[0m';
+const GRAY = '\x1b[90m';
+const GREEN = '\x1b[32m';
+const YELLOW = '\x1b[33m';
+const RED = '\x1b[31m';
+const FIELD = '\x1b[38;5;250m';
+
+const LEVEL_COLOR: Record<string, string> = {
+  INFO: GREEN,
+  WARN: YELLOW,
+  ERROR: RED,
+  DEBUG: GRAY,
+};
+
+type LogField = string | number | boolean | null | undefined;
+export type LogFields = Record<string, LogField>;
+
+function timestamp(): string {
+  return new Date().toISOString();
+}
+
+function maskPII(fields?: LogFields): LogFields | undefined {
+  if (!fields) return undefined;
+  const masked = { ...fields };
+  for (const key of Object.keys(masked)) {
+    if (['email', 'preferred_username', 'user'].includes(key) && typeof masked[key] === 'string') {
+      masked[key] = '***';
+    }
+  }
+  return masked;
+}
+
+function formatFields(fields?: LogFields): string {
+  if (!fields) return '';
+  return ' ' + Object.entries(fields).map(([k, v]) => `${FIELD}${k}=${v}${RESET}`).join(' ');
+}
+
+function log(service: string, level: string, message: string, fields?: LogFields) {
+  const output = level === 'ERROR' ? console.error : console.log;
+  const masked = maskPII(fields);
+
+  if (config.isProduction) {
+    const entry: { timestamp: string; level: string; service: string; message: string; fields?: LogFields } = {
+      timestamp: timestamp(), level, service, message,
+    };
+    if (masked) entry.fields = masked;
+    output(JSON.stringify(entry));
+  } else {
+    const ts = GRAY + timestamp() + RESET;
+    const lvl = (LEVEL_COLOR[level] || RESET) + `[${level}]` + RESET;
+    output(`${ts} [${service}] ${lvl} ${message}${formatFields(masked)}`);
+  }
+}
+
+export const Logger = {
+  info: (svc: string, msg: string, f?: LogFields) => log(svc, 'INFO', msg, f),
+  warn: (svc: string, msg: string, f?: LogFields) => log(svc, 'WARN', msg, f),
+  error: (svc: string, msg: string, f?: LogFields) => log(svc, 'ERROR', msg, f),
+};
+
+
+bff/src/shared/interceptors/session-context.interceptor.ts
+----------------------------------------------------------
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { requestContext } from '../request-context';
+
+@Injectable()
+export class SessionContextInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const req = context.switchToHttp().getRequest();
+    return requestContext.run({ req }, () => next.handle());
+  }
+}
+
+
+bff/src/shared/utils/assert-authenticated.ts
+--------------------------------------------
+import { UnauthorizedException } from '@nestjs/common';
+import type { RawSession, AuthenticatedSession } from '../../types/session';
+
+export function assertAuthenticated(
+  session: RawSession | undefined,
+): asserts session is AuthenticatedSession {
+  if (!session?.auth) {
+    throw new UnauthorizedException('Not authenticated');
+  }
+}
+
+
+bff/src/shared/utils/is-keycloak-error-body.ts
+----------------------------------------------
+import type { KeycloakErrorBody } from '../../types/keycloak';
+
+export function isKeycloakErrorBody(data: unknown): data is KeycloakErrorBody {
+  return typeof data === 'object' && data !== null;
+}
+
+
+bff/src/shared/utils/utils.ts
+-----------------------------
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'unknown';
+}
+
+
+bff/src/shared/controllers/health.controller.ts
+-----------------------------------------------
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from '@nestjs/terminus';
+import { RedisService } from '../../redis/services/redis.service';
+import { Public } from '../../auth/decorators/auth.decorator';
+
+@Public()
+@Controller('health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private redis: RedisService,
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  check(): Promise<HealthCheckResult> {
+    return this.health.check([]);
+  }
+
+  @Get('readiness')
+  @HealthCheck()
+  readiness(): Promise<HealthCheckResult> {
+    return this.health.check([() => this.checkRedis()]);
+  }
+
+  private checkRedis(): Promise<HealthIndicatorResult> {
+    return this.redis.client.ping()
+      .then((pong) => ({ redis: { status: pong === 'PONG' ? 'up' as const : 'down' as const } }))
+      .catch(() => ({ redis: { status: 'down' as const } }));
+  }
+}
+
+
+bff/src/auth/auth.module.ts
+---------------------------
+import { Module } from '@nestjs/common';
+import { AuthController } from './controllers/auth.controller';
+import { BackchannelController } from './controllers/backchannel.controller';
+import { AuthService } from './services/auth.service';
+import { KeycloakClient } from './services/keycloak.service';
+import { JwksService } from './services/jwks.service';
+import { BackchannelService } from './services/backchannel.service';
+import { OAuthCallbackInterceptor } from './interceptors/oauth-callback.interceptor';
+import { SessionFactory } from './services/session.factory';
+import { RedisModule } from '../redis/redis.module';
+import { SessionModule } from '../session/session.module';
+
+@Module({
+  imports: [RedisModule, SessionModule],
+  controllers: [AuthController, BackchannelController],
+  providers: [
+    AuthService,
+    KeycloakClient,
+    JwksService,
+    BackchannelService,
+    OAuthCallbackInterceptor,
+    SessionFactory,
+  ],
+  exports: [AuthService],
+})
+export class AuthModule {}
+
+
+bff/src/auth/services/auth.service.ts
+-------------------------------------
+import { Injectable } from '@nestjs/common';
+import { decodeJwt } from 'jose';
+import * as crypto from 'crypto';
+import { config } from '../../config/config';
+import { RedisService } from '../../redis/services/redis.service';
+import { SessionService } from '../../session/services/session.service';
+import { KeycloakClient } from './keycloak.service';
+import { SessionFactory } from './session.factory';
+import { Logger } from '../../shared/logger/logger';
+import { errorMessage } from '../../shared/utils/utils';
+import { KeycloakJwtPayload } from '../../types/keycloak';
+import { SessionTokens } from '../../types/auth-session.interface';
+import type { RawSession, AuthenticatedSession } from '../../types/session';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly redis: RedisService,
+    private readonly keycloak: KeycloakClient,
+    private readonly sessionService: SessionService,
+    private readonly sessionFactory: SessionFactory,
+  ) {}
+
+  async buildAuthorizationUrl(): Promise<string> {
+    const codeVerifier = crypto.randomBytes(32).toString('hex');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest().toString('base64url');
+    const state = crypto.randomBytes(16).toString('hex');
+
+    await this.redis.setOAuthState(state, codeVerifier);
+
+    const params = new URLSearchParams({
+      client_id: config.keycloak.clientId,
+      response_type: 'code',
+      redirect_uri: config.keycloak.redirectUri,
+      scope: 'openid profile email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
+  }
+
+  async exchangeCode(code: string, state: string, session: RawSession): Promise<string> {
+    try {
+      const codeVerifier = await this.redis.getOAuthState(state);
+      if (!codeVerifier) {
+        Logger.warn('Auth', 'Invalid or expired OAuth state');
+        return `${config.frontendUrl}/login?error=invalid_state`;
+      }
+
+      const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier);
+      const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);
+      const authSession = this.sessionFactory.create(idPayload, tokenSet);
+
+      await this.sessionService.create(session, authSession);
+      await this.redis.deleteOAuthState(state);
+
+      Logger.info('Auth', 'Login complete', {
+        user: authSession.user.username || authSession.user.email,
+      });
+      return `${config.frontendUrl}/`;
+    } catch (err: unknown) {
+      Logger.error('Auth', `Callback error: ${errorMessage(err)}`);
+      return `${config.frontendUrl}/login?error=auth_failed`;
+    }
+  }
+
+  async logout(session: AuthenticatedSession): Promise<string> {
+    const idToken = session.auth.tokens.idToken;
+
+    await this.sessionService.destroy(session).catch((err: unknown) => {
+      Logger.error('AuthService', `Session destroy error: ${errorMessage(err)}`);
+    });
+
+    try {
+      await this.keycloak.revokeRefreshToken(session.auth.tokens.refreshToken);
+    } catch (err: unknown) {
+      Logger.warn('AuthService', `Failed to revoke refresh token: ${errorMessage(err)}`);
+    }
+
+    return this.buildLogoutUrl(idToken);
+  }
+
+  async refreshTokens(session: AuthenticatedSession): Promise<SessionTokens> {
+    const tokenSet = await this.keycloak.refreshTokens(session.auth.tokens.refreshToken);
+
+    const newTokens: SessionTokens = {
+      accessToken: tokenSet.access_token,
+      refreshToken: tokenSet.refresh_token || session.auth.tokens.refreshToken,
+      idToken: tokenSet.id_token,
+    };
+
+    await this.sessionService.saveTokens(session, newTokens);
+
+    return newTokens;
+  }
+
+  private buildLogoutUrl(idToken: string): string {
+    const url = new URL(`${config.keycloak.publicIssuer}/protocol/openid-connect/logout`);
+    url.searchParams.append('id_token_hint', idToken);
+    url.searchParams.append('post_logout_redirect_uri', config.keycloak.logoutRedirectUri);
+    return url.toString();
+  }
+}
+
+
+bff/src/auth/services/backchannel.service.ts
+--------------------------------------------
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { jwtVerify, JWTPayload } from 'jose';
+import { config } from '../../config/config';
+import { JwksService } from './jwks.service';
+import { RedisService } from '../../redis/services/redis.service';
+import { SessionService } from '../../session/services/session.service';
+import { Logger } from '../../shared/logger/logger';
+import { RedisKeys } from '../../redis/constants/redis-key-prefixes';
+
+@Injectable()
+export class BackchannelService {
+  constructor(
+    private readonly jwksService: JwksService,
+    private readonly redisService: RedisService,
+    private readonly sessionService: SessionService,
+  ) {}
+
+  async handleBackchannelLogout(logoutToken: string): Promise<void> {
+    const payload = await this.verifyLogoutToken(logoutToken);
+    await this.checkReplay(payload.jti);
+    const sub = this.validateSubClaim(payload);
+    await this.destroyUserSessions(sub);
+  }
+
+  private async verifyLogoutToken(logoutToken: string): Promise<JWTPayload> {
+    const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
+      issuer: config.keycloak.publicIssuer,
+      audience: config.keycloak.clientId,
+    });
+
+    const events = payload.events as Record<string, unknown> | undefined;
+    if (!events?.['http://schemas.openid.net/event/backchannel-logout']) {
+      throw new UnauthorizedException('Missing backchannel-logout event');
+    }
+
+    return payload;
+  }
+
+  private async checkReplay(jti: string | undefined): Promise<void> {
+    if (!jti) return;
+
+    const key = RedisKeys.replay(jti);
+    const exists = await this.redisService.client.exists(key);
+    if (exists) {
+      Logger.warn('Auth', 'Backchannel logout replay', { jti });
+      throw new UnauthorizedException('Replay detected');
+    }
+
+    const ttl = 300;
+    await this.redisService.client.set(key, '1', { EX: ttl });
+  }
+
+  private validateSubClaim(payload: JWTPayload): string {
+    if (!payload.sub) {
+      throw new BadRequestException('Missing sub claim');
+    }
+    return payload.sub;
+  }
+
+  private async destroyUserSessions(sub: string): Promise<void> {
+    Logger.info('Auth', 'Backchannel logout', { sub });
+    await this.sessionService.destroyAllSessions(sub);
+  }
+}
+
+
+bff/src/auth/services/jwks.service.ts
+-------------------------------------
+import { Injectable } from '@nestjs/common';
+import { createRemoteJWKSet } from 'jose';
+import { config } from '../../config/config';
+
+@Injectable()
+export class JwksService {
+  private readonly jwks = createRemoteJWKSet(
+    new URL(`${config.keycloak.issuer}/protocol/openid-connect/certs`),
+  );
+
+  getJWKS() {
+    return this.jwks;
+  }
+}
+
+
+bff/src/auth/services/keycloak.service.ts
+-----------------------------------------
+import { Injectable } from '@nestjs/common';
+import axios from 'axios';
+import { config } from '../../config/config';
+import { TokenSet } from '../../types/keycloak';
+
+const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as const;
+
+@Injectable()
+export class KeycloakClient {
+  private readonly tokenEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/token`;
+  private readonly revokeEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
+
+  private baseParams(): Record<string, string> {
+    return {
+      client_id: config.keycloak.clientId,
+      client_secret: config.keycloak.clientSecret,
+    };
+  }
+
+  async exchangeCode(code: string, codeVerifier: string): Promise<TokenSet> {
+    const { data } = await axios.post<TokenSet>(
+      this.tokenEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        grant_type: 'authorization_code',
+        redirect_uri: config.keycloak.redirectUri,
+        code,
+        code_verifier: codeVerifier,
+      }),
+      { headers: FORM_HEADERS },
+    );
+    return data;
+  }
+
+  async refreshTokens(refreshToken: string): Promise<TokenSet> {
+    const { data } = await axios.post<TokenSet>(
+      this.tokenEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      { headers: FORM_HEADERS },
+    );
+    return data;
+  }
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    await axios.post(
+      this.revokeEndpoint,
+      new URLSearchParams({
+        ...this.baseParams(),
+        token: refreshToken,
+        token_type_hint: 'refresh_token',
+      }),
+      { headers: FORM_HEADERS },
+    );
+  }
+}
+
+
+bff/src/auth/services/session.factory.ts
+----------------------------------------
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthSession, SessionTokens, SessionUser } from '../../types/auth-session.interface';
+import { KeycloakJwtPayload, TokenSet } from '../../types/keycloak';
+
+@Injectable()
+export class SessionFactory {
+  /** Создаёт полный объект аутентификации */
+  create(idPayload: KeycloakJwtPayload, tokenSet: TokenSet): AuthSession {
+    return {
+      user: this.buildUser(idPayload),
+      tokens: this.buildTokens(tokenSet),
+    };
+  }
+
+  /** Создаёт только токены (при рефреше) */
+  tokens(tokenSet: TokenSet): SessionTokens {
+    return this.buildTokens(tokenSet);
+  }
+
+  private buildUser(idPayload: KeycloakJwtPayload): SessionUser {
+    if (!idPayload.sub) {
+      throw new UnauthorizedException('ID token missing sub claim');
+    }
+    return {
+      id: idPayload.sub,
+      username: idPayload.preferred_username || '',
+      email: idPayload.email || '',
+      roles: this.extractRoles(idPayload),
+    };
+  }
+
+  private buildTokens(tokenSet: TokenSet): SessionTokens {
+    return {
+      accessToken: tokenSet.access_token,
+      refreshToken: tokenSet.refresh_token,
+      idToken: tokenSet.id_token,
+    };
+  }
+
+  private extractRoles(idPayload: KeycloakJwtPayload): string[] {
+    const realmRoles = idPayload.realm_access?.roles || [];
+    const clientRoles = Object.values(idPayload.resource_access || {}).flatMap(
+      (client) => client.roles || [],
+    );
+    return [...realmRoles, ...clientRoles];
+  }
+}
+
+
+bff/src/auth/interceptors/oauth-callback.interceptor.ts
+-------------------------------------------------------
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Observable, EMPTY } from 'rxjs';
+import { Request, Response } from 'express';
+import { config } from '../../config/config';
+import { Logger } from '../../shared/logger/logger';
+
+@Injectable()
+export class OAuthCallbackInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const req = context.switchToHttp().getRequest<Request>();
+    const res = context.switchToHttp().getResponse<Response>();
+    const { error, code, state } = req.query;
+
+    if (error) {
+      Logger.warn('Auth', `OAuth error: ${error}`);
+      res.redirect(`${config.frontendUrl}/login?error=${error}`);
+      return EMPTY;
+    }
+
+    if (!code || !state) {
+      res.redirect(`${config.frontendUrl}/login?error=missing_params`);
+      return EMPTY;
+    }
+
+    return next.handle();
+  }
+}
+
+
+bff/src/auth/dto/backchannel-logout.dto.ts
+------------------------------------------
+import { IsString, IsNotEmpty } from 'class-validator';
+
+export class BackchannelLogoutDto {
+  @IsString()
+  @IsNotEmpty()
+  logout_token!: string;
+}
+
+bff/src/auth/dto/oauth-callback.dto.ts
+--------------------------------------
+import { IsString, IsOptional } from 'class-validator';
+
+export class OAuthCallbackDto {
+  @IsString()
+  code!: string;
+
+  @IsString()
+  state!: string;
+
+  @IsString()
+  @IsOptional()
+  session_state?: string;
+
+  @IsString()
+  @IsOptional()
+  iss?: string;
+}
+
+
+bff/src/auth/controllers/auth.controller.ts
+-------------------------------------------
+import { Controller, Get, Post, Query, Req, Res, UseInterceptors } from '@nestjs/common';
+import { Response } from 'express';
+import { AuthService } from '../services/auth.service';
+import { Public, Auth } from '../decorators/auth.decorator';
+import { OAuthCallbackInterceptor } from '../interceptors/oauth-callback.interceptor';
+import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
+import { config } from '../../config/config';
+import type { RawSession, AuthenticatedSession } from '../../types/session';
+
+@Controller()
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Get('login')
+  async login(@Res() res: Response) {
+    const url = await this.authService.buildAuthorizationUrl();
+    res.redirect(url);
+  }
+
+  @Public()
+  @Get('callback')
+  @UseInterceptors(OAuthCallbackInterceptor)
+  async callback(
+    @Query() query: OAuthCallbackDto,
+    @Req() req: { session: RawSession },
+    @Res() res: Response,
+  ) {
+    const redirectUrl = await this.authService.exchangeCode(
+      query.code,
+      query.state,
+      req.session,
+    );
+    res.redirect(redirectUrl);
+  }
+
+  @Get('api/me')
+  me(@Auth() session: AuthenticatedSession) {
+    return { user: session.auth.user };
+  }
+
+  @Post('logout')
+  async logout(@Auth() session: AuthenticatedSession, @Res() res: Response) {
+    const logoutUrl = await this.authService.logout(session);
+
+    res.clearCookie(config.session.cookieName, {
+      path: '/',
+      sameSite: 'lax',
+      secure: config.isProduction,
+    });
+    res.clearCookie('XSRF-TOKEN', { path: '/' });
+    res.json({ logoutUrl });
+  }
+}
+
+
+bff/src/auth/controllers/backchannel.controller.ts
+--------------------------------------------------
+import { Controller, Post, Header, Body } from '@nestjs/common';
+import { Public } from '../decorators/auth.decorator';
+import { BackchannelService } from '../services/backchannel.service';
+import { BackchannelLogoutDto } from '../dto/backchannel-logout.dto';
+
+@Public()
+@Controller()
+export class BackchannelController {
+  constructor(private backchannelService: BackchannelService) {}
+
+  @Post('api/auth/backchannel-logout')
+  @Header('Cache-Control', 'no-store')
+  async backchannelLogout(@Body() body: BackchannelLogoutDto) {
+    await this.backchannelService.handleBackchannelLogout(body.logout_token);
+  }
+}
+
+
+bff/src/auth/decorators/auth.decorator.ts
+-----------------------------------------
+import { SetMetadata, createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { Request } from 'express';
+import type { AuthenticatedSession } from '../../types/session';
+
+export const IS_PUBLIC_KEY = 'isPublic';
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+
+export const Auth = createParamDecorator(
+  (_: unknown, ctx: ExecutionContext): AuthenticatedSession => {
+    const req = ctx.switchToHttp().getRequest<Request>();
+    return req.session as AuthenticatedSession;
+  },
+);
+
+
+bff/src/auth/guards/auth.guard.ts
+---------------------------------
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { Request } from 'express';
+import { IS_PUBLIC_KEY } from '../decorators/auth.decorator';
+import { assertAuthenticated } from '../../shared/utils/assert-authenticated';
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
+    const req = context.switchToHttp().getRequest<Request>();
+    assertAuthenticated(req.session);
+    return true;
+  }
+}
+
+
+bff/src/session/session.module.ts
+---------------------------------
+import { Module } from '@nestjs/common';
+import { SessionService } from './services/session.service';
+import { TokenRefreshLock } from './services/token-refresh-lock.service';
+import { RedisModule } from '../redis/redis.module';
+
+@Module({
+  imports: [RedisModule],
+  providers: [SessionService, TokenRefreshLock],
+  exports: [SessionService, TokenRefreshLock],
+})
+export class SessionModule {}
+
+
+bff/src/session/services/session.service.ts
+-------------------------------------------
+import { Injectable } from '@nestjs/common';
+import { requestContext } from '../../shared/request-context';
+import { assertAuthenticated } from '../../shared/utils/assert-authenticated';
+import { RedisService } from '../../redis/services/redis.service';
+import type { RawSession, AuthenticatedSession } from '../../types/session';
+import { AuthSession, SessionTokens } from '../../types/auth-session.interface';
+
+@Injectable()
+export class SessionService {
+  constructor(private readonly redis: RedisService) {}
+
+  /**
+   * Инициализирует аутентификацию, сохраняет сессию в Redis
+   * и добавляет в пользовательский индекс.
+   */
+  async create(session: RawSession, authSession: AuthSession): Promise<void> {
+    session.auth = authSession;
+    await this.save(session as AuthenticatedSession);
+    await this.redis.addUserSession(authSession.user.id, session.id);
+  }
+
+  /** Возвращает гарантированно аутентифицированную сессию */
+  get(): AuthenticatedSession {
+    const session = requestContext.getStore()?.req.session;
+    assertAuthenticated(session);
+    return session;
+  }
+
+  /**
+   * Атомарно обновляет токены, продлевает TTL сессии и пользовательского индекса,
+   * и сохраняет сессию в Redis.
+   */
+  async saveTokens(session: AuthenticatedSession, tokens: SessionTokens): Promise<void> {
+    session.auth.tokens = tokens;
+    await this.save(session);
+    await this.redis.refreshUserSessionTtl(session.auth.user.id);
+    await this.redis.refreshSessionStoreTtl(session.id);
+  }
+
+  /**
+   * Удаляет сессию и удаляет её из пользовательского индекса.
+   */
+  async destroy(session: AuthenticatedSession): Promise<void> {
+    await this.redis.removeUserSession(session.auth.user.id, session.id);
+    await this.destroySession(session);
+  }
+
+  /**
+   * Удаляет все сессии пользователя (для backchannel logout).
+   */
+  async destroyAllSessions(userId: string): Promise<void> {
+    const sessionIds = await this.redis.getUserSessions(userId);
+    if (sessionIds.length === 0) return;
+
+    await this.redis.deleteUserSessions(userId);
+  }
+
+  save(session: AuthenticatedSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.save((err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  reload(session: AuthenticatedSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.reload((err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  private destroySession(session: AuthenticatedSession): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.destroy((err) => (err ? reject(err) : resolve()));
+    });
+  }
+}
+
+
+bff/src/session/services/token-refresh-lock.service.ts
+------------------------------------------------------
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { RedisService } from '../../redis/services/redis.service';
+
+const LOCK_PREFIX = 'refresh_lock:';
+const LOCK_TTL_SECONDS = 10;
+
+const RELEASE_LUA = `
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+else
+  return 0
+end
+`;
+
+@Injectable()
+export class TokenRefreshLock {
+  private readonly owner = randomUUID();
+
+  constructor(private redis: RedisService) {}
+
+  async acquire(sessionId: string): Promise<boolean> {
+    const key = `${LOCK_PREFIX}${sessionId}`;
+    const result = await this.redis.client.set(key, this.owner, { NX: true, EX: LOCK_TTL_SECONDS });
+    return result === 'OK';
+  }
+
+  async waitAndRetry(sessionId: string, maxWaitMs = 5000, intervalMs = 50): Promise<void> {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      const key = `${LOCK_PREFIX}${sessionId}`;
+      const exists = await this.redis.client.exists(key);
+      if (!exists) return;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+
+  async release(sessionId: string): Promise<void> {
+    const key = `${LOCK_PREFIX}${sessionId}`;
+    await this.redis.client.eval(RELEASE_LUA, { keys: [key], arguments: [this.owner] });
+  }
+}
+
+
+themes/custom-login/login/login.ftl
+-----------------------------------
+<#import "template.ftl" as layout>
+<@layout.registrationLayout displayInfo=realm.password && realm.registrationAllowed; section>
+    <#if section = "title">
+        ${msg("loginTitle",(realm.displayName)!"")}
+    <#elseif section = "header">
+        <#if realm.displayName?has_content>
+            <h1>${realm.displayName}</h1>
+        <#else>
+            <h1>${msg("loginTitleHtml",(realm.displayNameHtml)!"")}</h1>
+        </#if>
+    <#elseif section = "form">
+        <div class="login-container">
+            <div class="login-card">
+                <#if realm.logoUri?has_content>
+                    <div class="login-logo">
+                        <img src="${url.resourcesPath}${realm.logoUri}" alt="${realm.displayName!}" />
+                    </div>
+                <#else>
+                    <div class="login-logo login-logo--icon">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="50" cy="50" r="48" fill="none" stroke="#646cff" stroke-width="2"/>
+                            <path d="M50 25 C35 25 25 35 25 45 C25 55 35 60 50 70 C65 60 75 55 75 45 C75 35 65 25 50 25Z" fill="#646cff" opacity="0.15" stroke="#646cff" stroke-width="1.5"/>
+                            <circle cx="50" cy="42" r="8" fill="none" stroke="#646cff" stroke-width="1.5"/>
+                            <path d="M38 62 C38 54 44 50 50 50 C56 50 62 54 62 62" fill="none" stroke="#646cff" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                </#if>
+
+                <form id="kc-form-login" onsubmit="return true;" action="${url.loginAction}" method="post">
+
+                    <div class="login-field">
+                        <label for="username" class="login-label">
+                            <#if !realm.loginWithEmailAllowed>
+                                ${msg("username")}
+                            <#elseif realm.registrationEmailAsUsername>
+                                ${msg("email")}
+                            <#else>
+                                ${msg("usernameOrEmail")}
+                            </#if>
+                        </label>
+                        <input tabindex="1" id="username"
+                               class="login-input <#if messagesPerField.existsError('username','password')>login-input--error</#if>"
+                               name="username"
+                               value="${(login.username!'')}"
+                               autocomplete="username"
+                               autofocus
+                               type="text"
+                               aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                        />
+                        <#if messagesPerField.existsError('username','password')>
+                            <span class="login-field-error">${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</span>
+                        </#if>
+                    </div>
+
+                    <div class="login-field">
+                        <label for="password" class="login-label">${msg("password")}</label>
+                        <div class="login-password-wrapper">
+                            <input tabindex="2" id="password"
+                                   class="login-input <#if messagesPerField.existsError('username','password')>login-input--error</#if>"
+                                   name="password"
+                                   type="password"
+                                   autocomplete="current-password"
+                                   aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                            />
+                            <button type="button" class="login-password-toggle" onclick="togglePassword()" aria-label="${msg('showPassword')}">
+                                <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg id="eye-closed" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <#if realm.rememberMe?has_content && realm.rememberMe>
+                        <div class="login-checkbox-row">
+                            <label class="login-checkbox-label">
+                                <input tabindex="3" id="rememberMe" name="rememberMe" type="checkbox" <#if login.rememberMe??>checked</#if>>
+                                <span class="login-checkbox-custom"></span>
+                                ${msg("rememberMe")}
+                            </label>
+                        </div>
+                    </#if>
+
+                    <div class="login-actions">
+                        <input type="hidden" id="kc-login" name="login" value="Log in"/>
+                        <input tabindex="4" class="login-button" name="submit" type="submit" value="${msg("doLogIn")}" aria-label="${msg("doLogIn")}"/>
+                    </div>
+                </form>
+
+                <#if realm.resetPasswordAllowed || realm.registrationAllowed>
+                    <div class="login-footer-links">
+                        <#if realm.resetPasswordAllowed>
+                            <a tabindex="5" href="${url.loginRestartFlowUrl}" class="login-link">${msg("doForgotPassword")}</a>
+                        </#if>
+                        <#if realm.registrationAllowed>
+                            <a tabindex="6" href="${url.registrationUrl}" class="login-link">${msg("doRegister")}</a>
+                        </#if>
+                    </div>
+                </#if>
+            </div>
+        </div>
+
+        <script>
+            function togglePassword() {
+                var input = document.getElementById('password');
+                var eyeOpen = document.getElementById('eye-open');
+                var eyeClosed = document.getElementById('eye-closed');
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    eyeOpen.style.display = 'none';
+                    eyeClosed.style.display = 'block';
+                } else {
+                    input.type = 'password';
+                    eyeOpen.style.display = 'block';
+                    eyeClosed.style.display = 'none';
+                }
+            }
+        </script>
+    <#elseif section = "info">
+        <#if displayInfo>
+            <div id="kc-info">
+                <div id="kc-info-wrapper">
+                    ${msg("loginInfoHtml")}
+                </div>
+            </div>
+        </#if>
+    </#if>
+</@layout.registrationLayout>
+
+
+themes/custom-login/login/template.ftl
+--------------------------------------
+<#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false>
+<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${title!}</title>
+    <#if properties.styles?has_content>
+        <#list properties.styles?split(' ') as style>
+            <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
+        </#list>
+    </#if>
+</head>
+<body>
+    <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
+        <#if message.type == 'error'>
+            <div class="login-alert login-alert--error">
+                <span>${message.summary}</span>
+            </div>
+        <#elseif message.type == 'success'>
+            <div class="login-alert login-alert--info">
+                <span>${message.summary}</span>
+            </div>
+        <#elseif message.type == 'warning'>
+            <div class="login-alert login-alert--info">
+                <span>${message.summary}</span>
+            </div>
+        <#else>
+            <div class="login-alert login-alert--info">
+                <span>${message.summary}</span>
+            </div>
+        </#if>
+    </#if>
+
+    <#nested "form">
+
+    <#if displayInfo>
+        <#nested "info">
+    </#if>
+</body>
+</html>
+</#macro>
+
+
+themes/custom-login/login/theme.properties
+------------------------------------------
+parent=base
+import=common/keycloak
+styles= css/login.css
+
+
+themes/custom-login/login/resources/css/login.css
+-------------------------------------------------
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #f8f9fc;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+    margin: 0 auto;
+}
+
+.login-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 48px 40px;
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        0 4px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.login-logo img {
+    max-height: 64px;
+    max-width: 200px;
+}
+
+.login-logo--icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.login-logo--icon svg {
+    width: 64px;
+    height: 64px;
+}
+
+.login-card h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 32px;
+    letter-spacing: -0.02em;
+}
+
+/* Alert / Error */
+.login-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.login-alert--error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.login-alert--info {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.login-alert__icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+}
+
+.login-alert--error .login-alert__icon {
+    color: #dc2626;
+}
+
+.login-alert--info .login-alert__icon {
+    color: #2563eb;
+}
+
+.login-alert__icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+/* Form Fields */
+.login-field {
+    margin-bottom: 20px;
+}
+
+.login-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.login-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #111827;
+    background: #f9fafb;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.login-input::placeholder {
+    color: #9ca3af;
+}
+
+.login-input:focus {
+    border-color: #646cff;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.12);
+}
+
+.login-input--error {
+    border-color: #fca5a5;
+    background: #fff5f5;
+}
+
+.login-input--error:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* Password */
+.login-password-wrapper {
+    position: relative;
+}
+
+.login-password-wrapper .login-input {
+    padding-right: 48px;
+}
+
+.login-password-toggle {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+
+.login-password-toggle:hover {
+    color: #646cff;
+    background: rgba(100, 108, 255, 0.06);
+}
+
+.login-password-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Remember Me */
+.login-checkbox-row {
+    margin-bottom: 24px;
+}
+
+.login-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #4b5563;
+    user-select: none;
+}
+
+.login-checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid #d1d5db;
+    background: #f9fafb;
+    cursor: pointer;
+    accent-color: #646cff;
+    transition: all 0.15s ease;
+}
+
+.login-checkbox-label input[type="checkbox"]:checked {
+    background: #646cff;
+    border-color: #646cff;
+}
+
+/* Submit Button */
+.login-actions {
+    margin-top: 8px;
+}
+
+.login-button {
+    width: 100%;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #ffffff;
+    background: #646cff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.01em;
+}
+
+.login-button:hover {
+    background: #535bf2;
+    box-shadow: 0 4px 12px rgba(100, 108, 255, 0.35);
+    transform: translateY(-1px);
+}
+
+.login-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(100, 108, 255, 0.25);
+}
+
+.login-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.3);
+}
+
+/* Social Providers */
+.login-divider {
+    display: flex;
+    align-items: center;
+    margin: 28px 0;
+    gap: 16px;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e5e7eb;
+}
+
+.login-divider span {
+    font-size: 13px;
+    color: #9ca3af;
+    white-space: nowrap;
+}
+
+.login-social {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+}
+
+.login-social-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 20px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.login-social-button:hover {
+    border-color: #d1d5db;
+    background: #f9fafb;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.login-social-button img {
+    height: 20px;
+    margin-right: 8px;
+}
+
+/* Footer Links */
+.login-footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.login-link {
+    font-size: 14px;
+    font-weight: 500;
+    color: #646cff;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.login-link:hover {
+    color: #535bf2;
+    text-decoration: underline;
+}
+
+.login-powered {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.login-powered a {
+    color: #646cff;
+    text-decoration: none;
+}
+
+.login-powered a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 36px 24px;
+        border-radius: 12px;
+    }
+
+    .login-container {
+        padding: 12px;
+    }
+}
+
+/* Focus visible for accessibility */
+*:focus-visible {
+    outline: 2px solid #646cff;
+    outline-offset: 2px;
+}
+
+.login-input:focus-visible,
+.login-button:focus-visible {
+    outline: none;
+}
+
+/* Keycloak base overrides */
+#kc-content {
+    width: 100%;
+}
+
+#kc-form {
+    width: 100%;
+}
+
+#kc-form-login {
+    width: 100%;
+}
+
+#kc-info {
+    margin-top: 0;
+}
+
+

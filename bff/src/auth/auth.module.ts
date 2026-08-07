@@ -12,7 +12,13 @@ import { SessionModule } from '../session/session.module';
 @Module({
   imports: [RedisModule, SessionModule],
   controllers: [AuthController, BackchannelController],
-  providers: [AuthService, KeycloakClient, JwksService, BackchannelService, OAuthCallbackInterceptor],
+  providers: [
+    AuthService,
+    KeycloakClient,
+    JwksService,
+    BackchannelService,
+    OAuthCallbackInterceptor,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

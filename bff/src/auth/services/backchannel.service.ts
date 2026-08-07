@@ -3,41 +3,25 @@ import { jwtVerify, JWTPayload } from 'jose';
 import { config } from '../../config/config';
 import { JwksService } from './jwks.service';
 import { RedisService } from '../../redis/services/redis.service';
-import { AuthService } from './auth.service';
+import { SessionService } from '../../session/services/session.service';
 import { Logger } from '../../shared/logger/logger';
 import { RedisKeys } from '../../redis/constants/redis-key-prefixes';
 
 @Injectable()
 export class BackchannelService {
   constructor(
-    private jwksService: JwksService,
-    private redisService: RedisService,
-    private authService: AuthService,
+    private readonly jwksService: JwksService,
+    private readonly redisService: RedisService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  // Обработка backchannel logout от Keycloak
-  //   ├─ нет токена → 400
-  //   ├─ невалидный JWT → 401/400
-  //   └─ валидный → проверяем replay
-  //                    ├─ replay → 401
-  //                    └─ ок → валидируем sub
-  //                              ├─ нет sub → 400
-  //                              └─ есть → удаляем сессии
-  async handleBackchannelLogout(logoutToken: string | undefined): Promise<void> {
-    this.validateLogoutToken(logoutToken);                       // проверяем наличие токена или кидает ошибку
-    const payload = await this.verifyLogoutToken(logoutToken);   // проверяем JWT или кидает ошибку
-    await this.checkReplay(payload.jti);                         // проверяем Redis или кидает ошибку
-    const sub = this.validateSubClaim(payload);                  // проверяем sub или кидает ошибку
-    await this.destroyUserSessions(sub);                         // удаляем сессии
+  async handleBackchannelLogout(logoutToken: string): Promise<void> {
+    const payload = await this.verifyLogoutToken(logoutToken);
+    await this.checkReplay(payload.jti);
+    const sub = this.validateSubClaim(payload);
+    await this.destroyUserSessions(sub);
   }
 
-  private validateLogoutToken(logoutToken: string | undefined): asserts logoutToken is string {
-    if (!logoutToken) {
-      throw new BadRequestException('Missing logout_token');
-    }
-  }
-
-  // Проверяем JWT подпись, issuer, audience и событие backchannel-logout
   private async verifyLogoutToken(logoutToken: string): Promise<JWTPayload> {
     const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
       issuer: config.keycloak.publicIssuer,
@@ -52,7 +36,6 @@ export class BackchannelService {
     return payload;
   }
 
-  // Проверяем replay: если jti уже был — бросаем ошибку, нет — записываем в Redis
   private async checkReplay(jti: string | undefined): Promise<void> {
     if (!jti) return;
 
@@ -67,7 +50,6 @@ export class BackchannelService {
     await this.redisService.client.set(key, '1', { EX: ttl });
   }
 
-  // Валидируем sub: если нет — бросаем BadRequestException, есть — возвращаем строку
   private validateSubClaim(payload: JWTPayload): string {
     if (!payload.sub) {
       throw new BadRequestException('Missing sub claim');
@@ -75,9 +57,8 @@ export class BackchannelService {
     return payload.sub;
   }
 
-  // Удаляем все сессии пользователя через AuthService
   private async destroyUserSessions(sub: string): Promise<void> {
     Logger.info('Auth', 'Backchannel logout', { sub });
-    await this.authService.destroyUserSessions(sub);
+    await this.sessionService.destroyAllSessions(sub);
   }
 }
