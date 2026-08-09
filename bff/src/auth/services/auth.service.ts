@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { decodeJwt } from 'jose';
 import * as crypto from 'crypto';
+import { Response } from 'express';
 import { config } from '../../config/config';
 import { RedisService } from '../../redis/services/redis.service';
 import { SessionService } from '../../session/services/session.service';
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
   ) {}
 
+  // Создаем URL для авторизации в Keycloak
   async buildAuthorizationUrl(): Promise<string> {
     const { verifier, challenge } = this.generatePkce();       // генерируем PKCE пару
     const state = crypto.randomBytes(16).toString('hex');     // создаем state
@@ -35,28 +37,18 @@ export class AuthService {
     return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
   }
 
-  // Примитив для генерации PKCE
-  private generatePkce() {
-    const verifier = crypto.randomBytes(32).toString('hex');
-    const challenge = crypto
-      .createHash('sha256')
-      .update(verifier)
-      .digest()
-      .toString('base64url');
-    return { verifier, challenge };
-  }
-
+  // Обмениваем authorization code на токены и создаем сессию
   async exchangeCode(code: string, state: string): Promise<string> {
-    const codeVerifier = await this.redis.getOAuthState(state);
+    const codeVerifier = await this.redis.getOAuthState(state); // проверяем state в Redis
     if (!codeVerifier) {
-      throw new BadRequestException('Invalid or expired OAuth state');
+      throw new BadRequestException('Invalid or expired OAuth state'); // бросаем ошибку если state невалиден
     }
 
-    const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier);
-    const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);
+    const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier); // обмениваем код на токены
+    const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);     // парсим ID токен
 
-    const session = await this.sessionService.create(idPayload, tokenSet, idPayload.sub);
-    await this.redis.deleteOAuthState(state);
+    const session = await this.sessionService.create(idPayload, tokenSet, idPayload.sub); // создаем сессию
+    await this.redis.deleteOAuthState(state); // удаляем state после использования
 
     Logger.info('Auth', 'Login complete', {
       user: session.user.username || session.user.email,
@@ -64,6 +56,7 @@ export class AuthService {
     return session.id;
   }
 
+  // Завершаем сессию локально и в Keycloak
   async logout(session: Session): Promise<string> {
     const idToken = session.tokens.idToken;
     const refreshToken = session.tokens.refreshToken;
@@ -73,23 +66,57 @@ export class AuthService {
     });
 
     try {
-      await this.keycloak.revokeRefreshToken(refreshToken);
+      await this.keycloak.revokeRefreshToken(refreshToken); // отзываем refresh token в Keycloak
     } catch (err: unknown) {
       Logger.warn('AuthService', `Failed to revoke refresh token: ${errorMessage(err)}`);
     }
 
-    return this.buildLogoutUrl(idToken);
+    return this.buildLogoutUrl(idToken); // возвращаем URL для выхода из Keycloak
   }
 
+  // Обновляем токены сессии через Keycloak
   async refreshTokens(sessionId: string, currentTokens: SessionTokens): Promise<SessionTokens> {
-    const tokenSet = await this.keycloak.refreshTokens(currentTokens.refreshToken);
+    const tokenSet = await this.keycloak.refreshTokens(currentTokens.refreshToken); // запрашиваем новые токены
     const newTokens: SessionTokens = {
       accessToken: tokenSet.access_token,
       refreshToken: tokenSet.refresh_token || currentTokens.refreshToken,
       idToken: tokenSet.id_token,
     };
-    await this.sessionService.updateTokens(sessionId, newTokens);
+    await this.sessionService.updateTokens(sessionId, newTokens); // сохраняем обновленные токены
     return newTokens;
+  }
+
+  // Устанавливаем сессионную куку в ответ
+  async setSessionCookie(res: Response, sessionId: string) {
+    res.cookie(config.session.cookieName, sessionId, {
+      httpOnly: true,
+      secure: config.isProduction,
+      sameSite: 'strict',
+      maxAge: config.session.ttl * 1000,
+      path: '/',
+    });
+  }
+
+  // Очищаем сессионные куки в ответе
+  clearSessionCookies(res: Response) {
+    res.clearCookie(config.session.cookieName, {
+      path: '/',
+      sameSite: 'strict',
+      secure: config.isProduction,
+    });
+    res.clearCookie('XSRF-TOKEN', { path: '/' });
+  }
+
+  // --- Примитивы ---
+
+  private generatePkce() {
+    const verifier = crypto.randomBytes(32).toString('hex');
+    const challenge = crypto
+      .createHash('sha256')
+      .update(verifier)
+      .digest()
+      .toString('base64url');
+    return { verifier, challenge };
   }
 
   private buildLogoutUrl(idToken: string): string {

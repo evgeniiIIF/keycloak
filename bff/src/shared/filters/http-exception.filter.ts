@@ -24,9 +24,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof AxiosError && exception.response) {
       status = exception.response.status;
       const data = exception.response.data as Record<string, unknown> | undefined;
-      message = String(
-        data?.error_description || data?.message || data?.error || exception.response.statusText,
-      );
+
+      // Возвращаем детали только если это стандартная ошибка OAuth2, иначе — общую фразу
+      const isOAuthError = data?.error === 'invalid_grant' || data?.error === 'access_denied';
+      message = isOAuthError
+        ? String(data?.error_description || data?.error || 'OAuth error')
+        : 'Backend service error';
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
     }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Patch, Req, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Req, Param, BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
 import { HttpClient } from '../services/http-client.service';
 import { config } from '../../config/config';
@@ -14,26 +14,38 @@ export class GatewayController {
 
   @Get('*')
   async get(@Param('0') path: string) {
-    return this.http.get(`${config.protectedServiceUrl}/${path}`);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.get(`${config.protectedServiceUrl}/${sanitizedPath}`);
   }
 
   @Post('*')
   async post(@Param('0') path: string, @Req() req: Request) {
-    return this.http.post(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.post(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Put('*')
   async put(@Param('0') path: string, @Req() req: Request) {
-    return this.http.put(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.put(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Delete('*')
   async delete(@Param('0') path: string) {
-    return this.http.delete(`${config.protectedServiceUrl}/${path}`);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.delete(`${config.protectedServiceUrl}/${sanitizedPath}`);
   }
 
   @Patch('*')
   async patch(@Param('0') path: string, @Req() req: Request) {
-    return this.http.patch(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.patch(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
+  }
+
+  private sanitizePath(path: string): string {
+    if (path.includes('..')) {
+      throw new BadRequestException('Invalid path: path traversal is not allowed');
+    }
+    return path.replace(/^\//, '');
   }
 }

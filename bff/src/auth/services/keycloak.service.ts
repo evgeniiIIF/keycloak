@@ -3,6 +3,11 @@ import axios from 'axios';
 import { config } from '../../config/config';
 import { TokenSet } from '../../types/keycloak';
 
+interface KeycloakBaseParams {
+  client_id: string;
+  client_secret: string;
+}
+
 const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as const;
 
 @Injectable()
@@ -10,7 +15,11 @@ export class KeycloakClient {
   private readonly tokenEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/token`;
   private readonly revokeEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
 
-  private baseParams(): Record<string, string> {
+  private readonly axiosInstance = axios.create({
+    timeout: 5000,
+  });
+
+  private baseParams(): KeycloakBaseParams {
     return {
       client_id: config.keycloak.clientId,
       client_secret: config.keycloak.clientSecret,
@@ -18,7 +27,7 @@ export class KeycloakClient {
   }
 
   async exchangeCode(code: string, codeVerifier: string): Promise<TokenSet> {
-    const { data } = await axios.post<TokenSet>(
+    const { data } = await this.axiosInstance.post<TokenSet>(
       this.tokenEndpoint,
       new URLSearchParams({
         ...this.baseParams(),
@@ -33,7 +42,7 @@ export class KeycloakClient {
   }
 
   async refreshTokens(refreshToken: string): Promise<TokenSet> {
-    const { data } = await axios.post<TokenSet>(
+    const { data } = await this.axiosInstance.post<TokenSet>(
       this.tokenEndpoint,
       new URLSearchParams({
         ...this.baseParams(),
@@ -46,7 +55,7 @@ export class KeycloakClient {
   }
 
   async revokeRefreshToken(refreshToken: string): Promise<void> {
-    await axios.post(
+    await this.axiosInstance.post(
       this.revokeEndpoint,
       new URLSearchParams({
         ...this.baseParams(),

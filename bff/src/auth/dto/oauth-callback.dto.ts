@@ -2,6 +2,10 @@ import { IsString, IsOptional } from 'class-validator';
 
 export class OAuthCallbackDto {
   @IsString()
+  @IsOptional()
+  error?: string;
+
+  @IsString()
   code!: string;
 
   @IsString()

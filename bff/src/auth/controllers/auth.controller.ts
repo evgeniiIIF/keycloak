@@ -25,14 +25,8 @@ export class AuthController {
   async callback(@Query() query: OAuthCallbackDto, @Res() res: Response) {
     try {
       const sessionId = await this.authService.exchangeCode(query.code, query.state);
-      res.cookie(config.session.cookieName, sessionId, {
-        httpOnly: true,
-        secure: config.isProduction,
-        sameSite: 'lax',
-        maxAge: config.session.ttl * 1000,
-        path: '/',
-      });
-      res.redirect(`${config.frontendUrl}/`);
+      await this.authService.setSessionCookie(res, sessionId); // устанавливаем сессионную куку
+      res.redirect(`${config.frontendUrl}/`);                 // перенаправляем на фронтенд
     } catch (err) {
       Logger.error('AuthController', 'Callback failed', { error: (err as Error).message });
       res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
@@ -46,14 +40,8 @@ export class AuthController {
 
   @Post('logout')
   async logout(@AuthSession() session: Session, @Res() res: Response) {
-    const logoutUrl = await this.authService.logout(session);
-
-    res.clearCookie(config.session.cookieName, {
-      path: '/',
-      sameSite: 'lax',
-      secure: config.isProduction,
-    });
-    res.clearCookie('XSRF-TOKEN', { path: '/' });
-    res.json({ logoutUrl });
+    const logoutUrl = await this.authService.logout(session); // завершаем сессию и получаем URL выхода
+    this.authService.clearSessionCookies(res);                // очищаем все куки
+    res.json({ logoutUrl });                                  // возвращаем URL выхода
   }
 }

@@ -61,18 +61,6 @@ private async handleResponseError(error: AxiosError) {
   }
 ```
 
-**Дерево** — показывает ветвления когда их много:
-```typescript
-// Обработка backchannel logout от Keycloak
-//   ├─ невалидный токен → 401
-//   └─ валидный → проверяем replay
-//                    ├─ replay → 401
-//                    └─ ок → валидируем sub
-//                              ├─ нет sub → 400
-//                              └─ есть → удаляем сессии
-async handleBackchannelLogout(logoutToken: string): Promise<void> {
-```
-
 **If/else ветвление:**
 ```typescript
 // Обрабатываем ошибку обновления токена
@@ -164,7 +152,7 @@ async handleCallback(query: OAuthCallbackQuery, session: BffSession) {
 
 **Правила:**
 - Определяй interface/type для DTO, query params, configs — там где `Record` не описывает реальную структуру
-- Используй `unknown` вместо `any` когда тип неизвестен
+- Используй `unknown` вместо `any` когда тип неизвестен, но старайся избегать, все должно быть типизированно типами и интерфейсами
 - Экспортируй интерфейсы если они используются в нескольких местах
 
 ## SOLID, KISS, DRY

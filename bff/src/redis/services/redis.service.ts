@@ -22,7 +22,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    await this.client.connect();
+    try {
+      await this.client.connect();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      Logger.error('Redis', `Failed to connect to Redis: ${errorMessage}`);
+      // Не бросаем ошибку, чтобы приложение могло запуститься (хотя будет работать в degraded mode)
+    }
   }
 
   async onModuleDestroy() {
@@ -66,10 +72,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async deleteUserSessions(userId: string): Promise<void> {
     const sessionIds = await this.getUserSessions(userId);
-    for (const sid of sessionIds) {
-      await this.client.del(`${config.session.prefix}${sid}`);
+    if (sessionIds.length > 0) {
+      const keys = sessionIds.map(sid => `${config.session.prefix}${sid}`);
+      await this.client.del(keys); // удаляем все ключи сессий одним запросом
     }
-    await this.client.del(RedisKeys.userSessions(userId));
+    await this.client.del(RedisKeys.userSessions(userId)); // удаляем список сессий пользователя
   }
 
   async refreshUserSessionTtl(userId: string): Promise<void> {

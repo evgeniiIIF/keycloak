@@ -3,13 +3,15 @@ import { Observable, EMPTY } from 'rxjs';
 import { Request, Response } from 'express';
 import { config } from '../../config/config';
 import { Logger } from '../../shared/logger/logger';
+import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()
 export class OAuthCallbackInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
-    const { error, code, state } = req.query;
+    const query = req.query as unknown as OAuthCallbackDto;
+    const { error, code, state } = query;
 
     if (error) {
       Logger.warn('Auth', `OAuth error: ${error}`);

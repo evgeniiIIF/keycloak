@@ -25,7 +25,7 @@ function maskPII(fields?: LogFields): LogFields | undefined {
   if (!fields) return undefined;
   const masked = { ...fields };
   for (const key of Object.keys(masked)) {
-    if (['email', 'preferred_username', 'user'].includes(key) && typeof masked[key] === 'string') {
+    if (['email', 'preferred_username', 'user', 'accessToken', 'refreshToken', 'client_secret', 'code', 'state', 'password'].includes(key) && typeof masked[key] === 'string') {
       masked[key] = '***';
     }
   }
