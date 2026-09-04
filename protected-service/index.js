@@ -2,23 +2,20 @@ const express = require('express');
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
 const app = express();
-const port = process.env.PORT || 8080;
-const JWKS_URL = process.env.JWKS_URL;
-const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER;
-const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID;
 
-if (!JWKS_URL) {
-  console.error('JWKS_URL environment variable is required');
-  process.exit(1);
+function getEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Environment variable ${name} is required`);
+    process.exit(1);
+  }
+  return value;
 }
-if (!KEYCLOAK_ISSUER) {
-  console.error('KEYCLOAK_ISSUER environment variable is required');
-  process.exit(1);
-}
-if (!KEYCLOAK_CLIENT_ID) {
-  console.error('KEYCLOAK_CLIENT_ID environment variable is required');
-  process.exit(1);
-}
+
+const port = getEnv('PORT');
+const JWKS_URL = getEnv('JWKS_URL');
+const KEYCLOAK_ISSUER = getEnv('KEYCLOAK_ISSUER');
+const KEYCLOAK_CLIENT_ID = getEnv('KEYCLOAK_CLIENT_ID');
 
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 

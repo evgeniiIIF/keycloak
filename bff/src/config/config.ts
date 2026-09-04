@@ -2,6 +2,24 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+// Helper to ensure environment variables are present
+function getEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Environment variable ${name} is required but was not found.`);
+  }
+  return value;
+}
+
+function getEnvInt(name: string): number {
+  const value = getEnv(name);
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Environment variable ${name} must be a number.`);
+  }
+  return parsed;
+}
+
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret || sessionSecret.length < 32) {
   throw new Error(
@@ -9,53 +27,39 @@ if (!sessionSecret || sessionSecret.length < 32) {
   );
 }
 
-const port = parseInt(process.env.PORT || '3000', 10);
-if (Number.isNaN(port)) {
-  throw new Error('PORT must be a number');
-}
-
-const sessionTtl = parseInt(process.env.SESSION_TTL || '86400', 10);
-if (Number.isNaN(sessionTtl)) {
-  throw new Error('SESSION_TTL must be a number');
-}
-
-const DEFAULT_FRONTEND = 'http://localhost:8082';
-
-const nodeEnv = process.env.NODE_ENV || 'development';
-
-const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET || '';
-if (nodeEnv === 'production' && !clientSecret) {
-  throw new Error('KEYCLOAK_CLIENT_SECRET is required in production');
-}
+const port = getEnvInt('PORT');
+const sessionTtl = getEnvInt('SESSION_TTL');
+const nodeEnv = getEnv('NODE_ENV');
+const clientSecret = getEnv('KEYCLOAK_CLIENT_SECRET');
 
 export const config = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
   port,
-  frontendUrl: process.env.FRONTEND_URL || DEFAULT_FRONTEND,
-  protectedServiceUrl: process.env.PROTECTED_SERVICE_URL || 'http://protected-service:8080',
+  frontendUrl: getEnv('FRONTEND_URL'),
+  protectedServiceUrl: getEnv('PROTECTED_SERVICE_URL'),
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
-    : [process.env.FRONTEND_URL || DEFAULT_FRONTEND],
+    : [getEnv('FRONTEND_URL')],
   session: {
     secret: sessionSecret,
-    cookieName: process.env.SESSION_COOKIE_NAME || 'connect.sid',
-    prefix: process.env.SESSION_PREFIX || 'sess:',
+    cookieName: getEnv('SESSION_COOKIE_NAME'),
+    prefix: getEnv('SESSION_PREFIX'),
     ttl: sessionTtl,
-    oauthStateTtl: parseInt(process.env.OAUTH_STATE_TTL || '600', 10),
+    oauthStateTtl: getEnvInt('OAUTH_STATE_TTL'),
   },
   keycloak: {
-    issuer: process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
-    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
-    clientId: process.env.KEYCLOAK_CLIENT_ID || 'bff-client',
+    issuer: getEnv('KEYCLOAK_ISSUER'),
+    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || getEnv('KEYCLOAK_ISSUER'),
+    clientId: getEnv('KEYCLOAK_CLIENT_ID'),
     clientSecret,
-    redirectUri: process.env.KEYCLOAK_REDIRECT_URI || 'http://localhost:3000/callback',
-    logoutRedirectUri: process.env.KEYCLOAK_LOGOUT_REDIRECT_URI || `http://localhost:${port}/login`,
+    redirectUri: getEnv('KEYCLOAK_REDIRECT_URI'),
+    logoutRedirectUri: getEnv('KEYCLOAK_LOGOUT_REDIRECT_URI'),
   },
   redis: {
     url:
       process.env.REDIS_URL ||
-      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`,
+      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${getEnv('REDIS_HOST')}:${getEnv('REDIS_PORT')}`,
     password: process.env.REDIS_PASSWORD || undefined,
   },
 } as const;

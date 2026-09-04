@@ -8,12 +8,10 @@
     ├── README.md
     ├── docker-compose.prod.yml
     ├── docker-compose.yml
-    docs/
-        compose/
-            plans/
-                ├── 2026-07-11-security-decorators-refactor.md
     client/
         ├── .dockerignore
+        ├── .env
+        ├── .env.example
         ├── Dockerfile
         ├── Dockerfile.dev
         ├── index.html
@@ -34,6 +32,9 @@
             api/
                 ├── api.ts
     protected-service/
+        ├── .dockerignore
+        ├── .env
+        ├── .env.example
         ├── Dockerfile
         ├── Dockerfile.dev
         ├── index.js
@@ -44,14 +45,15 @@
     bff/
         ├── .dockerignore
         ├── .env
+        ├── .env.example
         ├── .prettierrc
         ├── Dockerfile
         ├── Dockerfile.dev
-        ├── SESSION_ARCHITECTURE.md
         ├── eslint.config.js
         ├── jest.config.js
         ├── nest-cli.json
         ├── package.json
+        ├── realm-export.json
         ├── tsconfig.json
         src/
             ├── app.module.ts
@@ -65,10 +67,10 @@
                 controllers/
                     ├── gateway.controller.ts
             types/
-                ├── auth-session.interface.ts
                 ├── axios.d.ts
+                ├── express.d.ts
                 ├── keycloak.d.ts
-                ├── session.d.ts
+                ├── session.ts
             redis/
                 ├── redis.module.ts
                 services/
@@ -78,16 +80,12 @@
             config/
                 ├── config.ts
             shared/
-                ├── request-context.ts
                 ├── shared.module.ts
                 filters/
                     ├── http-exception.filter.ts
                 logger/
                     ├── logger.ts
-                interceptors/
-                    ├── session-context.interceptor.ts
                 utils/
-                    ├── assert-authenticated.ts
                     ├── is-keycloak-error-body.ts
                     ├── utils.ts
                 controllers/
@@ -99,7 +97,6 @@
                     ├── backchannel.service.ts
                     ├── jwks.service.ts
                     ├── keycloak.service.ts
-                    ├── session.factory.ts
                 interceptors/
                     ├── oauth-callback.interceptor.ts
                 dto/
@@ -117,7 +114,18 @@
                 services/
                     ├── session.service.ts
                     ├── token-refresh-lock.service.ts
+    .claude/
+        ├── settings.local.json
     themes/
+        react-login-app/
+            ├── index.html
+            ├── package.json
+            ├── tsconfig.json
+            ├── vite.config.ts
+            src/
+                ├── App.tsx
+                ├── main.tsx
+                ├── styles.css
         custom-login/
             login/
                 ├── login.ftl
@@ -125,6 +133,17 @@
                 ├── theme.properties
                 resources/
                     css/
+                        ├── login.css
+        react-login/
+            login/
+                ├── error.ftl
+                ├── login.ftl
+                ├── template.ftl
+                ├── theme.properties
+                resources/
+                    ├── index.html
+                    js/
+                        ├── login-bundle.js
                         ├── login.css
 
 ==================================================
@@ -134,67 +153,87 @@
 
 .env
 ----
-# === Keycloak ===
+# === Infrastructure (Docker) ===
+# These values are used by docker-compose and inside the container network
+
+# Keycloak Admin
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=admin
 KEYCLOAK_REALM=TestRealm
+KC_HOSTNAME=localhost
+
+# Keycloak Client
 KEYCLOAK_CLIENT_ID=bff-client
 KEYCLOAK_CLIENT_SECRET=AQce4SdHum6sxqnreawz3ArsKm4tIx47
-KC_HOSTNAME=localhost
 KEYCLOAK_ISSUER=http://keycloak:8080/realms/TestRealm
 KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
 
-# === Database ===
+# Database
 POSTGRES_DB=keycloak
 POSTGRES_USER=keycloak
 POSTGRES_PASSWORD=password
 
-# === Redis ===
+# Redis
 REDIS_HOST=redis
 REDIS_PORT=6379
 
-# === BFF ===
+# BFF
 PORT=3000
 NODE_ENV=development
 SESSION_SECRET=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+SESSION_TTL=86400
+SESSION_COOKIE_NAME=connect.sid
+SESSION_PREFIX=sess:
 OAUTH_STATE_TTL=600
 FRONTEND_URL=http://localhost:8082
 PROTECTED_SERVICE_URL=http://protected-service:8080
+KEYCLOAK_REDIRECT_URI=http://localhost:3000/callback
+KEYCLOAK_LOGOUT_REDIRECT_URI=http://localhost:8082/
 
-# === Frontend ===
+# Frontend
 VITE_API_URL=http://localhost:3000
 
 
 .env.example
 ------------
-# === Keycloak ===
-KEYCLOAK_ADMIN=
+# === Infrastructure (Docker) ===
+# Copy this file to .env and fill in the values
+
+# Keycloak Admin
+KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=
 KEYCLOAK_REALM=TestRealm
+KC_HOSTNAME=localhost
+
+# Keycloak Client
 KEYCLOAK_CLIENT_ID=bff-client
 KEYCLOAK_CLIENT_SECRET=
-KC_HOSTNAME=localhost
 KEYCLOAK_ISSUER=http://keycloak:8080/realms/TestRealm
 KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
 
-# === Database ===
+# Database
 POSTGRES_DB=keycloak
 POSTGRES_USER=keycloak
 POSTGRES_PASSWORD=
 
-# === Redis ===
+# Redis
 REDIS_HOST=redis
 REDIS_PORT=6379
 
-# === BFF ===
+# BFF
 PORT=3000
 NODE_ENV=development
-SESSION_SECRET=  # >= 32 chars, generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-OAUTH_STATE_TTL=600  # OAuth state TTL in seconds (default 10 minutes)
+SESSION_SECRET=  # >= 32 chars
+SESSION_TTL=86400
+SESSION_COOKIE_NAME=connect.sid
+SESSION_PREFIX=sess:
+OAUTH_STATE_TTL=600
 FRONTEND_URL=http://localhost:8082
 PROTECTED_SERVICE_URL=http://protected-service:8080
+KEYCLOAK_REDIRECT_URI=http://localhost:3000/callback
+KEYCLOAK_LOGOUT_REDIRECT_URI=http://localhost:8082/
 
-# === Frontend ===
+# Frontend
 VITE_API_URL=http://localhost:3000
 
 
@@ -306,18 +345,6 @@ private async handleResponseError(error: AxiosError) {
   }
 ```
 
-**Дерево** — показывает ветвления когда их много:
-```typescript
-// Обработка backchannel logout от Keycloak
-//   ├─ невалидный токен → 401
-//   └─ валидный → проверяем replay
-//                    ├─ replay → 401
-//                    └─ ок → валидируем sub
-//                              ├─ нет sub → 400
-//                              └─ есть → удаляем сессии
-async handleBackchannelLogout(logoutToken: string): Promise<void> {
-```
-
 **If/else ветвление:**
 ```typescript
 // Обрабатываем ошибку обновления токена
@@ -409,7 +436,7 @@ async handleCallback(query: OAuthCallbackQuery, session: BffSession) {
 
 **Правила:**
 - Определяй interface/type для DTO, query params, configs — там где `Record` не описывает реальную структуру
-- Используй `unknown` вместо `any` когда тип неизвестен
+- Используй `unknown` вместо `any` когда тип неизвестен, но старайся избегать, все должно быть типизированно типами и интерфейсами
 - Экспортируй интерфейсы если они используются в нескольких местах
 
 ## SOLID, KISS, DRY
@@ -751,6 +778,8 @@ services:
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_PUBLIC_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
+      KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI}
+      KEYCLOAK_LOGOUT_REDIRECT_URI: ${KEYCLOAK_LOGOUT_REDIRECT_URI}
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       PROTECTED_SERVICE_URL: ${PROTECTED_SERVICE_URL}
@@ -773,6 +802,7 @@ services:
       - ./protected-service:/app
       - /app/node_modules
     environment:
+      PORT: 8080
       JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
       KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_ISSUER}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
@@ -806,598 +836,30 @@ networks:
 volumes:
   postgres_data:
 
-docs/compose/plans/2026-07-11-security-decorators-refactor.md
--------------------------------------------------------------
-# Security Decorators & Guard Refactoring Plan
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Replace route-based security middleware with NestJS decorator-driven guards, simplifying security configuration and making it co-located with controllers.
-
-**Architecture:** Move from a centralized `SecurityMiddleware` that matches routes against a rules table (`routes.ts`) to NestJS-native `@Public()`, `@RequireSession()`, `@RequireCsrf()`, `@Roles()` decorators applied directly on controller methods. A global `AuthGuard` reads these metadata keys via `Reflector` and enforces them.
-
-**Tech Stack:** NestJS, Reflector, `jose` (decodeJwt), Express types
-
-## Global Constraints
-
-- CSRF check compares cookie `XSRF-TOKEN` with header `x-csrf-token` (double-submit pattern)
-- Token expiry check: reject if `exp < now + 30` (30s skew)
-- `@RequireCsrf()` also validates session-level `csrfToken` matches cookie
-- Roles decorator supports `mode: 'any' | 'all'` and `source` (default `'realm'`)
-- `APP_GUARD` providers: ThrottlerGuard first, then AuthGuard (both apply globally)
-- No changes to `CsrfMiddleware` cookie logic except removing session save
-
----
-
-## Task 1: Create auth decorators
-
-**Covers:** Decorator definitions for Public, RequireSession, RequireCsrf, SkipExpiryCheck, Roles
-
-**Files:**
-- Create: `bff/src/decorators/auth.decorator.ts`
-
-- [ ] **Step 1: Create decorator file**
-
-```typescript
-import { SetMetadata } from '@nestjs/common';
-
-export const IS_PUBLIC_KEY = 'isPublic';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
-
-export const REQUIRE_SESSION = 'requireSession';
-export const RequireSession = () => SetMetadata(REQUIRE_SESSION, true);
-
-export const REQUIRE_CSRF = 'requireCsrf';
-export const RequireCsrf = () => SetMetadata(REQUIRE_CSRF, true);
-
-export const SKIP_EXPIRY_CHECK = 'skipExpiryCheck';
-export const SkipExpiryCheck = () => SetMetadata(SKIP_EXPIRY_CHECK, true);
-
-export const ROLES_KEY = 'roles';
-export const Roles = (
-  roles: string[],
-  options?: { mode?: 'any' | 'all'; source?: string },
-) => SetMetadata(ROLES_KEY, { roles, ...options });
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add bff/src/decorators/auth.decorator.ts
-git commit -m "feat(bff): add auth decorators for guard-based security"
-```
-
----
-
-## Task 2: Create AuthGuard
-
-**Covers:** Global guard that reads decorator metadata and enforces session, CSRF, expiry, and role checks
-
-**Files:**
-- Create: `bff/src/guards/auth.guard.ts`
-
-- [ ] **Step 1: Create guard file**
-
-```typescript
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { decodeJwt } from 'jose';
-import { Request } from 'express';
-import {
-  IS_PUBLIC_KEY,
-  REQUIRE_SESSION,
-  REQUIRE_CSRF,
-  SKIP_EXPIRY_CHECK,
-  ROLES_KEY,
-} from '../decorators/auth.decorator';
-import { KeycloakJwtPayload } from '../types/keycloak';
-
-@Injectable()
-export class AuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
-
-    const request = context.switchToHttp().getRequest<Request>();
-    const { session, cookies, headers } = request;
-
-    const requireSession = this.reflector.getAllAndOverride<boolean>(REQUIRE_SESSION, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    const requireCsrf = this.reflector.getAllAndOverride<boolean>(REQUIRE_CSRF, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    const skipExpiryCheck = this.reflector.getAllAndOverride<boolean>(SKIP_EXPIRY_CHECK, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    const rolesMeta = this.reflector.getAllAndOverride<any>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    // Session check
-    if (requireSession) {
-      if (!session?.accessToken) {
-        throw new UnauthorizedException('No session');
-      }
-
-      if (!skipExpiryCheck) {
-        try {
-          const payload = decodeJwt(session.accessToken);
-          const now = Math.floor(Date.now() / 1000);
-          if (payload?.exp && payload.exp < now + 30) {
-            throw new UnauthorizedException('Token expired');
-          }
-        } catch {
-          throw new UnauthorizedException('Invalid token');
-        }
-      }
-    }
-
-    // CSRF check
-    if (requireCsrf) {
-      const cookie = cookies?.['XSRF-TOKEN'];
-      const header = headers['x-csrf-token'];
-      if (!cookie || !header || cookie !== header) {
-        throw new ForbiddenException('Invalid CSRF token');
-      }
-    }
-
-    // Roles check
-    if (rolesMeta?.roles?.length) {
-      if (!session?.accessToken) {
-        throw new ForbiddenException('No session');
-      }
-      const payload = decodeJwt(session.accessToken) as KeycloakJwtPayload;
-      const source = rolesMeta.source || 'realm';
-      const userRoles: string[] =
-        source === 'realm'
-          ? payload?.realm_access?.roles || []
-          : payload?.resource_access?.[source]?.roles || [];
-
-      const mode = rolesMeta.mode || 'any';
-      const ok =
-        mode === 'all'
-          ? rolesMeta.roles.every((r: string) => userRoles.includes(r))
-          : rolesMeta.roles.some((r: string) => userRoles.includes(r));
-
-      if (!ok) {
-        throw new ForbiddenException('Insufficient roles');
-      }
-    }
-
-    return true;
-  }
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add bff/src/guards/auth.guard.ts
-git commit -m "feat(bff): add global AuthGuard with decorator-based security"
-```
-
----
-
-## Task 3: Update app.module.ts — register AuthGuard globally
-
-**Covers:** Register AuthGuard as APP_GUARD, remove old middleware references
-
-**Files:**
-- Modify: `bff/src/app.module.ts`
-
-- [ ] **Step 1: Update app.module.ts**
-
-Replace the full file content:
-
-```typescript
-import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { TerminusModule } from '@nestjs/terminus';
-import { ThrottlerGuard } from '@nestjs/throttler';
-
-import { AuthGuard } from './guards/auth.guard';
-import { RedisService } from './services/redis.service';
-import { JwksService } from './services/jwks.service';
-import { KeycloakClient } from './services/keycloak-client';
-import { AuthService } from './services/auth.service';
-import { HttpClient } from './services/http-client';
-
-import { AuthController } from './controllers/auth.controller';
-import { ProxyController } from './controllers/proxy.controller';
-import { HealthController } from './controllers/health.controller';
-import { BackchannelController } from './controllers/backchannel.controller';
-
-import { SessionContextInterceptor } from './interceptors/session-context.interceptor';
-
-@Module({
-  imports: [
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
-    TerminusModule,
-  ],
-  controllers: [AuthController, ProxyController, HealthController, BackchannelController],
-  providers: [
-    RedisService,
-    JwksService,
-    KeycloakClient,
-    AuthService,
-    HttpClient,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_GUARD, useClass: AuthGuard },
-    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
-  ],
-  exports: [RedisService],
-})
-export class AppModule {}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add bff/src/app.module.ts
-git commit -m "feat(bff): register AuthGuard as global APP_GUARD"
-```
-
----
-
-## Task 4: Update main.ts — remove SecurityMiddleware
-
-**Covers:** Remove SecurityMiddleware import and registration from bootstrap
-
-**Files:**
-- Modify: `bff/src/main.ts`
-
-- [ ] **Step 1: Remove SecurityMiddleware lines**
-
-Remove these two lines:
-- Line 7: `import { SecurityMiddleware } from './middleware/security.middleware';`
-- Lines 70-71: `const sec = app.get(SecurityMiddleware); app.use(sec.use.bind(sec));`
-
-- [ ] **Step 2: Verify remaining content**
-
-The file should retain: NestFactory, ValidationPipe, express, AppModule, config, RedisService, CsrfMiddleware, HttpExceptionFilter, Logger, cookieParser, helmet, session, RedisStore, and the full bootstrap function (minus SecurityMiddleware lines).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add bff/src/main.ts
-git commit -m "feat(bff): remove SecurityMiddleware from bootstrap"
-```
-
----
-
-## Task 5: Add decorators to AuthController
-
-**Covers:** @Public on login/callback, @RequireSession on /api/me, @RequireSession + @RequireCsrf on logout (returning JSON)
-
-**Files:**
-- Modify: `bff/src/controllers/auth.controller.ts`
-
-- [ ] **Step 1: Add imports**
-
-Add to imports:
-```typescript
-import { Public, RequireSession, RequireCsrf } from '../decorators/auth.decorator';
-```
-
-- [ ] **Step 2: Add @Public() to login and callback**
-
-```typescript
-@Public()
-@Get('login')
-async login(@Req() req: Request, @Res() res: Response) {
-```
-
-```typescript
-@Public()
-@Get('callback')
-async callback(@Query() query: CallbackQueryDto, @Req() req: Request, @Res() res: Response) {
-```
-
-- [ ] **Step 3: Add @RequireSession() to /api/me**
-
-```typescript
-@RequireSession()
-@Get('api/me')
-me(@Req() req: Request) {
-```
-
-- [ ] **Step 4: Update logout — add decorators, change to JSON response**
-
-```typescript
-@RequireSession()
-@RequireCsrf()
-@Post('logout')
-async logout(@Req() req: Request, @Res() res: Response) {
-  const { session } = req;
-  const { idToken, refreshToken, userInfo } = session;
-  const userId = userInfo?.sub;
-
-  if (refreshToken) {
-    await this.keycloak.revokeRefreshToken(refreshToken);
-  }
-
-  if (userId && session.id) {
-    await this.authService.unregisterSession(userId, session.id).catch((err: unknown) => {
-      Logger.warn('Auth', `Unregister session failed: ${errorMessage(err)}`);
-    });
-  }
-
-  session.destroy((err: Error | null) => {
-    if (err) Logger.error('Auth', `Session destroy: ${err.message}`);
-    res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
-    res.clearCookie('XSRF-TOKEN', { path: '/' });
-    const logoutUrl = idToken ? this.authService.getLogoutUrl(idToken) : '/login';
-    res.json({ logoutUrl });
-  });
-}
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add bff/src/controllers/auth.controller.ts
-git commit -m "feat(bff): add auth decorators to AuthController, logout returns JSON"
-```
-
----
-
-## Task 6: Add decorators to ProxyController
-
-**Covers:** @RequireSession on class, @RequireCsrf on mutation methods
-
-**Files:**
-- Modify: `bff/src/controllers/proxy.controller.ts`
-
-- [ ] **Step 1: Add imports**
-
-Add to imports:
-```typescript
-import { RequireSession, RequireCsrf } from '../decorators/auth.decorator';
-```
-
-- [ ] **Step 2: Add @RequireSession() at class level**
-
-```typescript
-@Controller('api/service')
-@RequireSession()
-export class ProxyController {
-```
-
-- [ ] **Step 3: Add @RequireCsrf() to POST, PUT, DELETE, PATCH**
-
-```typescript
-@Post('*')
-@RequireCsrf()
-async post(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
-```
-
-```typescript
-@Put('*')
-@RequireCsrf()
-async put(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
-```
-
-```typescript
-@Delete('*')
-@RequireCsrf()
-async delete(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
-```
-
-```typescript
-@Patch('*')
-@RequireCsrf()
-async patch(@Param('0') path: string, @Req() req: Request, @Res() res: Response) {
-```
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add bff/src/controllers/proxy.controller.ts
-git commit -m "feat(bff): add auth decorators to ProxyController"
-```
-
----
-
-## Task 7: Add @Public() to BackchannelController and HealthController
-
-**Covers:** Both controllers are fully public
-
-**Files:**
-- Modify: `bff/src/controllers/backchannel.controller.ts`
-- Modify: `bff/src/controllers/health.controller.ts`
-
-- [ ] **Step 1: Update BackchannelController**
-
-Add import and decorator:
-```typescript
-import { Controller, Post, Req, Res, Header } from '@nestjs/common';
-import { Public } from '../decorators/auth.decorator';
-```
-
-```typescript
-@Public()
-@Controller()
-export class BackchannelController {
-```
-
-- [ ] **Step 2: Update HealthController**
-
-Add import and decorator:
-```typescript
-import { Controller, Get } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
-import { Public } from '../decorators/auth.decorator';
-```
-
-```typescript
-@Public()
-@SkipThrottle()
-@Controller('health')
-export class HealthController {
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add bff/src/controllers/backchannel.controller.ts bff/src/controllers/health.controller.ts
-git commit -m "feat(bff): mark BackchannelController and HealthController as public"
-```
-
----
-
-## Task 8: Simplify CsrfMiddleware — remove session save
-
-**Covers:** Remove session.csrfToken write and session.save() from CSRF middleware
-
-**Files:**
-- Modify: `bff/src/middleware/csrf.middleware.ts`
-
-- [ ] **Step 1: Simplify the middleware**
-
-Replace the full file content:
-
-```typescript
-import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
-import * as crypto from 'crypto';
-import { config } from '../config/config';
-
-@Injectable()
-export class CsrfMiddleware implements NestMiddleware {
-  use(req: Request, res: Response, next: NextFunction): void {
-    if (!req.cookies['XSRF-TOKEN']) {
-      const token = crypto.randomBytes(32).toString('hex');
-      const isProd = config.nodeEnv === 'production';
-
-      res.cookie('XSRF-TOKEN', token, {
-        httpOnly: false,
-        secure: isProd,
-        sameSite: 'strict',
-        path: '/',
-      });
-    }
-    next();
-  }
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add bff/src/middleware/csrf.middleware.ts
-git commit -m "feat(bff): simplify CsrfMiddleware — cookie-only, no session save"
-```
-
----
-
-## Task 9: Delete old files
-
-**Covers:** Remove routes.ts, security.middleware.ts, security.middleware.spec.ts
-
-**Files:**
-- Delete: `bff/src/config/routes.ts`
-- Delete: `bff/src/middleware/security.middleware.ts`
-- Delete: `bff/src/middleware/security.middleware.spec.ts`
-
-- [ ] **Step 1: Delete files**
-
-```bash
-git rm bff/src/config/routes.ts bff/src/middleware/security.middleware.ts bff/src/middleware/security.middleware.spec.ts
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git commit -m "feat(bff): remove old route-based security middleware"
-```
-
----
-
-## Task 10: Update client AuthContext — logout via POST
-
-**Covers:** Client logout sends POST to /logout and follows the returned logoutUrl
-
-**Files:**
-- Modify: `client/src/context/AuthContext.tsx`
-
-- [ ] **Step 1: Update logout function**
-
-Replace the logout function:
-
-```typescript
-const logout = async () => {
-  try {
-    const response = await api.post('/logout');
-    window.location.href = response.data.logoutUrl;
-  } catch (error) {
-    window.location.href = '/login';
-  }
-};
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add client/src/context/AuthContext.tsx
-git commit -m "feat(client): logout via POST, follow returned logoutUrl"
-```
-
----
-
-## Task 11: Verify — build and type-check
-
-**Covers:** Ensure everything compiles
-
-**Files:** None (verification only)
-
-- [ ] **Step 1: Type-check BFF**
-
-```bash
-cd bff && npx tsc --noEmit
-```
-
-Expected: no errors
-
-- [ ] **Step 2: Type-check client**
-
-```bash
-cd client && npx tsc --noEmit
-```
-
-Expected: no errors
-
-- [ ] **Step 3: Run BFF tests (if any exist beyond deleted spec)**
-
-```bash
-cd bff && npx jest --passWithNoTests
-```
-
-Expected: PASS or no tests found
-
-
 client/.dockerignore
 --------------------
+.env
+.env.local
+.env.example
 node_modules
 dist
 .git
-.env
+
+
+client/.env
+-----------
+# === Local Run (Frontend) ===
+# Use these values when running locally
+
+VITE_API_URL=http://localhost:3000
+
+
+client/.env.example
+-------------------
+# === Local Run (Frontend) ===
+# Copy this file to .env and fill in the values
+
+VITE_API_URL=http://localhost:3000
 
 
 client/Dockerfile
@@ -1830,6 +1292,38 @@ api.interceptors.response.use(
 
 export default api;
 
+protected-service/.dockerignore
+-------------------------------
+.env
+.env.local
+.env.example
+node_modules
+dist
+.git
+
+
+protected-service/.env
+----------------------
+# === Local Run (Protected Service) ===
+# Use these values when running locally
+
+PORT=8080
+JWKS_URL=http://localhost:8080/realms/TestRealm/protocol/openid-connect/certs
+KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
+KEYCLOAK_CLIENT_ID=bff-client
+
+
+protected-service/.env.example
+------------------------------
+# === Local Run (Protected Service) ===
+# Copy this file to .env and fill in the values
+
+PORT=8080
+JWKS_URL=http://localhost:8080/realms/TestRealm/protocol/openid-connect/certs
+KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
+KEYCLOAK_CLIENT_ID=bff-client
+
+
 protected-service/Dockerfile
 ----------------------------
 FROM node:20-alpine
@@ -1857,23 +1351,20 @@ const express = require('express');
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
 const app = express();
-const port = process.env.PORT || 8080;
-const JWKS_URL = process.env.JWKS_URL;
-const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER;
-const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID;
 
-if (!JWKS_URL) {
-  console.error('JWKS_URL environment variable is required');
-  process.exit(1);
+function getEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Environment variable ${name} is required`);
+    process.exit(1);
+  }
+  return value;
 }
-if (!KEYCLOAK_ISSUER) {
-  console.error('KEYCLOAK_ISSUER environment variable is required');
-  process.exit(1);
-}
-if (!KEYCLOAK_CLIENT_ID) {
-  console.error('KEYCLOAK_CLIENT_ID environment variable is required');
-  process.exit(1);
-}
+
+const port = getEnv('PORT');
+const JWKS_URL = getEnv('JWKS_URL');
+const KEYCLOAK_ISSUER = getEnv('KEYCLOAK_ISSUER');
+const KEYCLOAK_CLIENT_ID = getEnv('KEYCLOAK_CLIENT_ID');
 
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
@@ -2007,20 +1498,7 @@ protected-service/package.json
       "cwd": "${workspaceFolder}/bff",
       "console": "integratedTerminal",
       "restart": true,
-      "skipFiles": ["<node_internals>/**"],
-      "env": {
-        "NODE_ENV": "development",
-        "PORT": "3000",
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6379",
-        "KEYCLOAK_ISSUER": "http://localhost:8080/realms/TestRealm",
-        "KEYCLOAK_PUBLIC_ISSUER": "http://localhost:8080/realms/TestRealm",
-        "KEYCLOAK_CLIENT_ID": "bff-client",
-        "KEYCLOAK_CLIENT_SECRET": "AQce4SdHum6sxqnreawz3ArsKm4tIx47",
-        "SESSION_SECRET": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "FRONTEND_URL": "http://localhost:8082",
-        "PROTECTED_SERVICE_URL": "http://localhost:8083"
-      }
+      "skipFiles": ["<node_internals>/**"]
     },
     {
       "type": "node",
@@ -2031,13 +1509,7 @@ protected-service/package.json
       "cwd": "${workspaceFolder}/protected-service",
       "console": "integratedTerminal",
       "restart": true,
-      "skipFiles": ["<node_internals>/**"],
-      "env": {
-        "PORT": "8080",
-        "JWKS_URL": "http://localhost:8080/realms/TestRealm/protocol/openid-connect/certs",
-        "KEYCLOAK_ISSUER": "http://localhost:8080/realms/TestRealm",
-        "KEYCLOAK_CLIENT_ID": "bff-client"
-      }
+      "skipFiles": ["<node_internals>/**"]
     }
   ],
   "compounds": [
@@ -2047,6 +1519,7 @@ protected-service/package.json
     }
   ]
 }
+
 
 .vscode/settings.json
 ---------------------
@@ -2059,42 +1532,71 @@ protected-service/package.json
 
 bff/.dockerignore
 -----------------
+.env
+.env.local
+.env.example
 node_modules
 dist
 .git
-.env
 
 
 bff/.env
 --------
-# === Keycloak ===
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=admin
-KEYCLOAK_REALM=TestRealm
+# === Local Run (BFF) ===
+# Use these values when running 'npm run dev' locally
+
+# Keycloak
 KEYCLOAK_CLIENT_ID=bff-client
 KEYCLOAK_CLIENT_SECRET=AQce4SdHum6sxqnreawz3ArsKm4tIx47
-KC_HOSTNAME=localhost
 KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
 KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
 
-# === Database ===
-POSTGRES_DB=keycloak
-POSTGRES_USER=keycloak
-POSTGRES_PASSWORD=password
-
-# === Redis ===
+# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# === BFF ===
+# BFF
 PORT=3000
 NODE_ENV=development
 SESSION_SECRET=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+SESSION_TTL=86400
+SESSION_COOKIE_NAME=connect.sid
+SESSION_PREFIX=sess:
 OAUTH_STATE_TTL=600
 FRONTEND_URL=http://localhost:8082
 PROTECTED_SERVICE_URL=http://localhost:8083
 
-# === Frontend ===
+# Frontend
+VITE_API_URL=http://localhost:3000
+
+
+bff/.env.example
+----------------
+# === Local Run (BFF) ===
+# Copy this file to .env and fill in the values
+
+# Keycloak
+KEYCLOAK_CLIENT_ID=bff-client
+KEYCLOAK_CLIENT_SECRET=
+KEYCLOAK_ISSUER=http://localhost:8080/realms/TestRealm
+KEYCLOAK_PUBLIC_ISSUER=http://localhost:8080/realms/TestRealm
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# BFF
+PORT=3000
+NODE_ENV=development
+SESSION_SECRET=  # >= 32 chars
+SESSION_TTL=86400
+SESSION_COOKIE_NAME=connect.sid
+SESSION_PREFIX=sess:
+OAUTH_STATE_TTL=600
+FRONTEND_URL=http://localhost:8082
+PROTECTED_SERVICE_URL=http://localhost:8083
+
+# Frontend
 VITE_API_URL=http://localhost:3000
 
 
@@ -2148,90 +1650,13 @@ EXPOSE 3000
 CMD ["npm", "run", "start:dev"]
 
 
-bff/SESSION_ARCHITECTURE.md
----------------------------
-# Архитектура сессий
-
-## Где хранится сессия
-
-### 1. Кука на клиенте (`connect.sid`)
-- Содержит **только ID сессии** (не данные)
-- Имя: `connect.sid`
-- Настройки: `httpOnly: true`, `secure: true` (prod), `sameSite: 'lax'`
-
-### 2. Данные сессии в Redis (автоматически)
-- Ключ: `sess:<sessionId>`
-- Хранит: `connect-redis` автоматически при вызове `session.save()`
-- Содержит: `{ accessToken, refreshToken, idToken, userInfo, oauth }`
-
-```typescript
-// src/main.ts:43-56 — единственная необходимая настройка
-session({
-  store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
-  secret: config.session.secret,
-  // ...
-})
-```
-
-`connect-redis` сериализует весь объект сессии в JSON и кладёт в Redis. Ручной код не нужен.
-
-### 3. Индекс сессий пользователя в Redis (вручную)
-- Ключ: `user_sessions:<userId>` (Redis Set)
-- Хранит: `RedisService.addUserSession()`
-- Содержит: список session ID для пользователя
-
-```typescript
-// src/services/redis.service.ts:30-32
-async addUserSession(userId: string, sessionId: string): Promise<void> {
-  await this.client.sAdd(`${USER_SESSIONS_PREFIX}:${userId}`, sessionId);
-}
-```
-
-Это наш код — нужен для массового logout (удалить все сессии пользователя).
-
-## Поток данных
-
-```
-1. GET /login
-   → express-session генерирует session.id
-   → кука connect.sid=sid123 отправляется клиенту
-
-2. GET /callback?code=...
-   → session.regenerate() (новый session.id)
-   → session.accessToken = "eyJ..."
-   → session.refreshToken = "eyJ..."
-   → session.userInfo = { sub: "user-123", ... }
-   → session.save() ← connect-redis кладёт всё в Redis: sess:sid123 = {...}
-   → RedisService.addUserSession("user-123", "sid123") ← добавляет в user_sessions:user-123
-
-3. GET /api/me
-   → кука connect.sid=sid123
-   → express-session достаёт sess:sid123 из Redis
-   → req.session.accessToken, req.session.userInfo доступны
-
-4. POST /logout
-   → RedisService.removeUserSession("user-123", "sid123") ← удаляет из индекса
-   → session.destroy() ← express-session удаляет sess:sid123 из Redis
-```
-
-## Итого
-
-| Что | Кто хранит | Ключ в Redis | Значение |
-|-----|-----------|--------------|----------|
-| Данные сессии (токены, пользователь) | `connect-redis` (автоматически) | `sess:<sessionId>` | JSON со всеми полями сессии |
-| Индекс сессий пользователя | `RedisService` (вручную) | `user_sessions:<userId>` | Set с session ID |
-
-- **`connect-redis`** — хранит данные сессии автоматически
-- **`RedisService`** — управляет индексом (какие сессии у пользователя) для массовых операций
-
-
 bff/eslint.config.js
 --------------------
-const tseslint = require('typescript-eslint');
-const prettier = require('eslint-config-prettier');
+import { config, configs } from 'typescript-eslint';
+import prettier from 'eslint-config-prettier';
 
-module.exports = tseslint.config(
-  ...tseslint.configs.recommended,
+export default config(
+  ...configs.recommended,
   {
     files: ['src/**/*.ts'],
     rules: {
@@ -2307,10 +1732,8 @@ bff/package.json
     "axios": "^1.7.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "connect-redis": "^7.1.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.0",
-    "express-session": "^1.17.3",
     "helmet": "^8.2.0",
     "jose": "^5.2.0",
     "redis": "^4.6.0",
@@ -2322,7 +1745,6 @@ bff/package.json
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.4.22",
     "@types/cookie-parser": "^1.4.10",
-    "@types/express-session": "^1.17.7",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
     "eslint": "^10.6.0",
@@ -2335,6 +1757,2645 @@ bff/package.json
   }
 }
 
+
+bff/realm-export.json
+---------------------
+{
+  "id": "de52ae71-fbb3-4463-8ae5-8afca7173483",
+  "realm": "TestRealm",
+  "notBefore": 1784492159,
+  "defaultSignatureAlgorithm": "RS256",
+  "revokeRefreshToken": false,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 60,
+  "ssoSessionIdleTimeoutRememberMe": 0,
+  "ssoSessionMaxLifespanRememberMe": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "offlineSessionMaxLifespan": 5184000,
+  "clientSessionIdleTimeout": 0,
+  "clientSessionMaxLifespan": 0,
+  "clientOfflineSessionIdleTimeout": 0,
+  "clientOfflineSessionMaxLifespan": 0,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "permanentLockout": false,
+  "maxTemporaryLockouts": 0,
+  "bruteForceStrategy": "MULTIPLE",
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "maxSecondaryAuthFailures": 0,
+  "roles": {
+    "realm": [
+      {
+        "id": "b3ff8636-cd7a-431a-93b3-b8c008a2ea16",
+        "name": "default-roles-testrealm",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "offline_access",
+            "uma_authorization"
+          ],
+          "client": {
+            "account": [
+              "view-profile",
+              "manage-account"
+            ]
+          }
+        },
+        "clientRole": false,
+        "containerId": "de52ae71-fbb3-4463-8ae5-8afca7173483",
+        "attributes": {}
+      },
+      {
+        "id": "26966f74-1e85-4e67-9813-404d17001f84",
+        "name": "offline_access",
+        "description": "${role_offline-access}",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "de52ae71-fbb3-4463-8ae5-8afca7173483",
+        "attributes": {}
+      },
+      {
+        "id": "bf56d111-318e-4339-abfa-952b92227fd6",
+        "name": "uma_authorization",
+        "description": "${role_uma_authorization}",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "de52ae71-fbb3-4463-8ae5-8afca7173483",
+        "attributes": {}
+      }
+    ],
+    "client": {
+      "bff-client": [],
+      "realm-management": [
+        {
+          "id": "b8204368-1859-479b-b3ce-ff7af1335a6b",
+          "name": "impersonation",
+          "description": "${role_impersonation}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "5b9d797f-cdb6-4462-b1e6-7bb6d11f4a8c",
+          "name": "manage-authorization",
+          "description": "${role_manage-authorization}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "cf612b4f-9164-421a-8817-2b8c8dc230e3",
+          "name": "realm-admin",
+          "description": "${role_realm-admin}",
+          "composite": true,
+          "composites": {
+            "client": {
+              "realm-management": [
+                "impersonation",
+                "manage-authorization",
+                "create-client",
+                "manage-users",
+                "manage-identity-providers",
+                "query-groups",
+                "view-authorization",
+                "query-realms",
+                "view-events",
+                "view-identity-providers",
+                "view-clients",
+                "view-realm",
+                "manage-realm",
+                "manage-events",
+                "query-users",
+                "manage-clients",
+                "view-users",
+                "query-clients"
+              ]
+            }
+          },
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "af05cfc5-caa4-4afb-97b8-dd553be0ea09",
+          "name": "create-client",
+          "description": "${role_create-client}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "bf0f6155-a2df-40d3-a71a-cc26c8b144ba",
+          "name": "manage-users",
+          "description": "${role_manage-users}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "d0d365a2-70fb-4a17-9ebf-e30afc84c794",
+          "name": "manage-identity-providers",
+          "description": "${role_manage-identity-providers}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "67249c6f-3c00-4e8e-87e2-bacae392bbdb",
+          "name": "query-groups",
+          "description": "${role_query-groups}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "67d662bb-6eaf-4df4-a0e3-87769883617e",
+          "name": "query-realms",
+          "description": "${role_query-realms}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "9defe12f-70c3-4d7a-bdef-52e1a4b3665b",
+          "name": "view-authorization",
+          "description": "${role_view-authorization}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "b5dcee11-01f3-491c-8c6b-2aab1ec3b6f9",
+          "name": "view-events",
+          "description": "${role_view-events}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "def07426-218b-4212-a4c7-ab71a2a5bb21",
+          "name": "view-identity-providers",
+          "description": "${role_view-identity-providers}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "010b2f96-a2d2-4117-9287-18b096720412",
+          "name": "view-clients",
+          "description": "${role_view-clients}",
+          "composite": true,
+          "composites": {
+            "client": {
+              "realm-management": [
+                "query-clients"
+              ]
+            }
+          },
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "ddcf9d80-b0cc-42cd-bc61-a5f5f303c83e",
+          "name": "view-realm",
+          "description": "${role_view-realm}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "ed28b4a4-1ee0-4c8c-a7a7-b2e271b0ad6f",
+          "name": "manage-events",
+          "description": "${role_manage-events}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "4c7f3c37-3c7e-4f83-b153-2487ccdce391",
+          "name": "manage-realm",
+          "description": "${role_manage-realm}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "da0944c9-6197-4119-b788-4b33b3e5e1e6",
+          "name": "query-users",
+          "description": "${role_query-users}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "18d1e3a1-2058-418c-922c-1d6c2936af4f",
+          "name": "manage-clients",
+          "description": "${role_manage-clients}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "d1d4cec4-ffc9-4507-8ec7-3f7866cce698",
+          "name": "view-users",
+          "description": "${role_view-users}",
+          "composite": true,
+          "composites": {
+            "client": {
+              "realm-management": [
+                "query-users",
+                "query-groups"
+              ]
+            }
+          },
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        },
+        {
+          "id": "3b7d629c-b52f-461f-ada4-c04d839d8220",
+          "name": "query-clients",
+          "description": "${role_query-clients}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+          "attributes": {}
+        }
+      ],
+      "security-admin-console": [],
+      "admin-cli": [],
+      "account-console": [],
+      "broker": [
+        {
+          "id": "51f0bc6c-4d52-4d16-9336-c6ee5b60c78c",
+          "name": "read-token",
+          "description": "${role_read-token}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "6597dd34-36e5-4d21-be9e-67b8ee0c39c1",
+          "attributes": {}
+        }
+      ],
+      "account": [
+        {
+          "id": "69789755-05fa-4f13-aeef-f933261cb51f",
+          "name": "view-groups",
+          "description": "${role_view-groups}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "e5b4ffdf-c188-487b-80e3-bc07bd823377",
+          "name": "manage-account-links",
+          "description": "${role_manage-account-links}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "c3233f81-3c70-4b8b-942d-0f1e90b539b4",
+          "name": "manage-consent",
+          "description": "${role_manage-consent}",
+          "composite": true,
+          "composites": {
+            "client": {
+              "account": [
+                "view-consent"
+              ]
+            }
+          },
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "525ecc02-66c2-442d-ba5c-0447e46415a9",
+          "name": "view-profile",
+          "description": "${role_view-profile}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "aa9b9a3d-8d9d-4eff-9ea4-2a1aa36188ae",
+          "name": "view-applications",
+          "description": "${role_view-applications}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "3847a73b-9b75-4c94-83fd-0f61bf1a9a51",
+          "name": "view-consent",
+          "description": "${role_view-consent}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "fae25fec-b0d6-4033-8812-fe4a78facde8",
+          "name": "delete-account",
+          "description": "${role_delete-account}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        },
+        {
+          "id": "e0914558-5133-4a2b-867f-732f7a3d54bf",
+          "name": "manage-account",
+          "description": "${role_manage-account}",
+          "composite": true,
+          "composites": {
+            "client": {
+              "account": [
+                "manage-account-links"
+              ]
+            }
+          },
+          "clientRole": true,
+          "containerId": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+          "attributes": {}
+        }
+      ]
+    }
+  },
+  "groups": [],
+  "defaultRole": {
+    "id": "b3ff8636-cd7a-431a-93b3-b8c008a2ea16",
+    "name": "default-roles-testrealm",
+    "description": "${role_default-roles}",
+    "composite": true,
+    "clientRole": false,
+    "containerId": "de52ae71-fbb3-4463-8ae5-8afca7173483"
+  },
+  "requiredCredentials": [
+    "password"
+  ],
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpPolicyCodeReusable": false,
+  "otpSupportedApplications": [
+    "totpAppFreeOTPName",
+    "totpAppGoogleName",
+    "totpAppMicrosoftAuthenticatorName"
+  ],
+  "localizationTexts": {},
+  "webAuthnPolicyRpEntityName": "keycloak",
+  "webAuthnPolicySignatureAlgorithms": [
+    "ES256",
+    "RS256"
+  ],
+  "webAuthnPolicyRpId": "",
+  "webAuthnPolicyAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyRequireResidentKey": "not specified",
+  "webAuthnPolicyUserVerificationRequirement": "not specified",
+  "webAuthnPolicyCreateTimeout": 0,
+  "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyAcceptableAaguids": [],
+  "webAuthnPolicyExtraOrigins": [],
+  "webAuthnPolicyPasswordlessRpEntityName": "keycloak",
+  "webAuthnPolicyPasswordlessSignatureAlgorithms": [
+    "ES256",
+    "RS256"
+  ],
+  "webAuthnPolicyPasswordlessRpId": "",
+  "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyPasswordlessAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyPasswordlessRequireResidentKey": "Yes",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "webAuthnPolicyPasswordlessCreateTimeout": 0,
+  "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+  "webAuthnPolicyPasswordlessExtraOrigins": [],
+  "scopeMappings": [
+    {
+      "clientScope": "offline_access",
+      "roles": [
+        "offline_access"
+      ]
+    }
+  ],
+  "clientScopeMappings": {
+    "account": [
+      {
+        "client": "account-console",
+        "roles": [
+          "manage-account",
+          "view-groups"
+        ]
+      }
+    ]
+  },
+  "clients": [
+    {
+      "id": "4c4ff146-4873-42d7-a201-2826c7490fd2",
+      "clientId": "account",
+      "name": "${client_account}",
+      "rootUrl": "${authBaseUrl}",
+      "baseUrl": "/realms/TestRealm/account/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "/realms/TestRealm/account/*"
+      ],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "post.logout.redirect.uris": "+"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": 0,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "f0ec2751-2723-4c74-9056-613bc9b63af9",
+      "clientId": "account-console",
+      "name": "${client_account-console}",
+      "rootUrl": "${authBaseUrl}",
+      "baseUrl": "/realms/TestRealm/account/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "/realms/TestRealm/account/*"
+      ],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": 0,
+      "protocolMappers": [
+        {
+          "id": "06c08325-b851-4bc4-ae88-4c8b8bbc05e4",
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": {}
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "d2245d0a-99a8-405a-93fe-6f8647af0bde",
+      "clientId": "admin-cli",
+      "name": "${client_admin-cli}",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "client.use.lightweight.access.token.enabled": "true"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": 0,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "3a656214-c177-4308-a618-cea79f9ebba8",
+      "clientId": "bff-client",
+      "name": "",
+      "description": "",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "**********",
+      "redirectUris": [
+        "http://localhost:3000/callback",
+        "http://localhost:8082/"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "10",
+        "oauth2.jwt.authorization.grant.enabled": "false",
+        "frontchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "http://localhost:8082/",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "true",
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.url": "http://bff:3000/api/auth/backchannel-logout",
+        "client_credentials.use_refresh_token": "false",
+        "require.pushed.authorization.requests": "false",
+        "pkce.code.challenge.method": "S256",
+        "dpop.bound.access.tokens": "false",
+        "id.token.as.detached.signature": "false",
+        "logout.confirmation.enabled": "false",
+        "client.secret.creation.time": "1783786260",
+        "client.introspection.response.allow.jwt.claim.enabled": "false",
+        "standard.token.exchange.enabled": "false",
+        "client.use.lightweight.access.token.enabled": "false",
+        "request.object.required": "not required",
+        "access.token.header.type.rfc9068": "false",
+        "acr.loa.map": "{}",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "display.on.consent.screen": "false",
+        "token.response.type.bearer.lower-case": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "protocolMappers": [
+        {
+          "id": "8bf85487-cb57-496c-881b-1d1afc9ed6de",
+          "name": "bff-client-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "bff-client",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "6597dd34-36e5-4d21-be9e-67b8ee0c39c1",
+      "clientId": "broker",
+      "name": "${client_broker}",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": true,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "true"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": 0,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "f18cdad8-2d90-4686-bfbd-a99fde9c0898",
+      "clientId": "realm-management",
+      "name": "${client_realm-management}",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "bearerOnly": true,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "true"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": 0,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "a25cf51b-3787-464c-9138-3cca9cdfbac5",
+      "clientId": "security-admin-console",
+      "name": "${client_security-admin-console}",
+      "rootUrl": "${authAdminUrl}",
+      "baseUrl": "/admin/TestRealm/console/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "/admin/TestRealm/console/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false",
+        "client.use.lightweight.access.token.enabled": "true",
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": 0,
+      "protocolMappers": [
+        {
+          "id": "16af9553-5756-462f-ad00-309d553a9075",
+          "name": "locale",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "locale",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "locale",
+            "jsonType.label": "String"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "organization",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "id": "64ed0a13-815e-4bcc-9fdf-9d09ec47a4f9",
+      "name": "acr",
+      "description": "OpenID Connect scope for add acr (authentication context class reference) to the token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "67f7e35d-fdac-4f00-8d04-bfb1bc1d07d5",
+          "name": "acr loa level",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-acr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "5e09fdc2-9bf7-4612-a4f9-5bea86515d75",
+      "name": "web-origins",
+      "description": "OpenID Connect scope for add allowed web origins to the access token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "consent.screen.text": "",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "01357201-9604-48d0-b45b-c26efff90150",
+          "name": "allowed web origins",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-allowed-origins-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "db19a5a5-6c6d-49ba-b7cd-38bad649c6ea",
+      "name": "email",
+      "description": "OpenID Connect built-in scope: email",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${emailScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "cf33eb78-124b-4761-8336-650ea6cc2cc3",
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "2c3d1b9a-a62f-445b-9216-3840522c7342",
+          "name": "email verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "emailVerified",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email_verified",
+            "jsonType.label": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "id": "568f3bc1-08d9-4fc9-90d6-1616116a4524",
+      "name": "basic",
+      "description": "OpenID Connect scope for add all basic claims to the token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "4edeb7f6-001c-4eb6-80b4-1d64a80ed7c5",
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "id": "95d961cd-d563-4a7f-9814-64b84a81ea6e",
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "auth_time",
+            "jsonType.label": "long"
+          }
+        }
+      ]
+    },
+    {
+      "id": "83ca0952-2aa1-40fc-8fe0-716d7f288d2c",
+      "name": "organization",
+      "description": "Additional claims about the organization a subject belongs to",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${organizationScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "f42ac018-dd3b-4f7f-b08c-604950fc1797",
+          "name": "organization",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-organization-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "organization",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "60a923d6-fd96-4588-b7b5-4e4786f340f2",
+      "name": "roles",
+      "description": "OpenID Connect scope for add user roles to the access token",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "consent.screen.text": "${rolesScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "dad23fb8-2846-4efb-a388-26891766e447",
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        },
+        {
+          "id": "296084c4-16c3-4029-a603-b86aa32ce74d",
+          "name": "client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        },
+        {
+          "id": "e709ed60-0457-4101-9a4b-359031f1e37b",
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "80175406-e9ab-4c90-99f0-b2e6b8ea1a2c",
+      "name": "microprofile-jwt",
+      "description": "Microprofile - JWT built-in scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "e1a84a3f-e9de-4604-b5ad-4e70645748d3",
+          "name": "upn",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "upn",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "b65243c2-dedf-4a74-998c-0e77d2d51d8c",
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "user.attribute": "foo",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dcdd9c74-056b-4f3f-a686-a9e67a620c42",
+      "name": "profile",
+      "description": "OpenID Connect built-in scope: profile",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${profileScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "585c0c22-6959-445a-9fa1-1f13e9459b17",
+          "name": "picture",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "picture",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "picture",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "d57e5fc6-491d-4ad1-9149-b86500e02f3f",
+          "name": "given name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "firstName",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "given_name",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "7a11275f-4a52-450b-b16c-be4912877197",
+          "name": "website",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "website",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "website",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "4a37635a-2b6a-4b7b-8627-4d6521eb07ac",
+          "name": "locale",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "locale",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "locale",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "574637dd-9fff-4c7c-a3b8-8f3aedefa12c",
+          "name": "gender",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "gender",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "gender",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "4a6dab57-e821-4e58-9eea-88a6cf81304f",
+          "name": "zoneinfo",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "zoneinfo",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "zoneinfo",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "7dbf2f01-b146-4a23-845d-9745856c09bc",
+          "name": "family name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "lastName",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "family_name",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "f262c9d8-9116-4270-8176-7c7d51f4cb38",
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "2efbf1de-60db-406b-b3da-3f2ecc42f077",
+          "name": "birthdate",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "birthdate",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "birthdate",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "2ed5c220-6373-4db5-9ba5-401c3bc5b827",
+          "name": "middle name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "middleName",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "middle_name",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "4fd5c272-5cca-4aaf-aac1-a5ee72a7abd6",
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "id": "16eef1f4-d7f5-4569-bf8e-bb0a38e0af29",
+          "name": "updated at",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "updatedAt",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "updated_at",
+            "jsonType.label": "long"
+          }
+        },
+        {
+          "id": "80d22827-45a6-433e-85a2-453dcaf0df46",
+          "name": "profile",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "profile",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "profile",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "6226564f-3bd7-4cfe-ae07-a7cfde495ee8",
+          "name": "nickname",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "nickname",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "nickname",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e2dfb803-05b3-4e6d-b254-7055912fd111",
+      "name": "address",
+      "description": "OpenID Connect built-in scope: address",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${addressScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "2b92040d-93b9-4a09-afee-b441ee1ef94c",
+          "name": "address",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-address-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute.formatted": "formatted",
+            "user.attribute.country": "country",
+            "introspection.token.claim": "true",
+            "user.attribute.postal_code": "postal_code",
+            "userinfo.token.claim": "true",
+            "user.attribute.street": "street",
+            "id.token.claim": "true",
+            "user.attribute.region": "region",
+            "access.token.claim": "true",
+            "user.attribute.locality": "locality"
+          }
+        }
+      ]
+    },
+    {
+      "id": "1faf8197-a70e-4766-b275-2631ac87b084",
+      "name": "phone",
+      "description": "OpenID Connect built-in scope: phone",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${phoneScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "93eb2584-ad77-4cea-8308-3bfb238cac20",
+          "name": "phone number",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "phoneNumber",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "phone_number",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "fb2104a4-23c9-42fe-a412-350a64b6a6f0",
+          "name": "phone number verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "phoneNumberVerified",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "phone_number_verified",
+            "jsonType.label": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "id": "4581fd63-806b-4a84-8d0b-43dffcaf3a05",
+      "name": "offline_access",
+      "description": "OpenID Connect built-in scope: offline_access",
+      "protocol": "openid-connect",
+      "attributes": {
+        "consent.screen.text": "${offlineAccessScopeConsentText}",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "id": "1a670d6e-abf8-46a8-a2d2-617b90052c9e",
+      "name": "saml_organization",
+      "description": "Organization Membership",
+      "protocol": "saml",
+      "attributes": {
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "9a8af8ca-8b78-412b-ae23-41862db8e869",
+          "name": "organization",
+          "protocol": "saml",
+          "protocolMapper": "saml-organization-membership-mapper",
+          "consentRequired": false,
+          "config": {}
+        }
+      ]
+    },
+    {
+      "id": "62199578-3d20-4806-93af-9bd4b636ec6e",
+      "name": "role_list",
+      "description": "SAML role list",
+      "protocol": "saml",
+      "attributes": {
+        "consent.screen.text": "${samlRoleListScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "8e42f5db-986b-458e-ad6a-00516b27a730",
+          "name": "role list",
+          "protocol": "saml",
+          "protocolMapper": "saml-role-list-mapper",
+          "consentRequired": false,
+          "config": {
+            "single": "false",
+            "attribute.nameformat": "Basic",
+            "attribute.name": "Role"
+          }
+        }
+      ]
+    },
+    {
+      "id": "f9b8fc1b-f038-4216-a407-3e5f0c3ac915",
+      "name": "service_account",
+      "description": "Specific scope for a client enabled for service accounts",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "74b5bf13-0a21-4de0-a137-dd4632fe9393",
+          "name": "Client Host",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "clientHost",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "clientHost",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "cf896f7c-f377-49a7-a80a-3f033663a9c4",
+          "name": "Client ID",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "client_id",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "client_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "7dfc8f6e-8110-4d03-b824-c7762dbcee7a",
+          "name": "Client IP Address",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "clientAddress",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "clientAddress",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "saml_organization",
+    "profile",
+    "email",
+    "roles",
+    "web-origins",
+    "acr",
+    "basic"
+  ],
+  "defaultOptionalClientScopes": [
+    "offline_access",
+    "address",
+    "phone",
+    "microprofile-jwt",
+    "organization"
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "referrerPolicy": "no-referrer",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {},
+  "loginTheme": "react-login",
+  "accountTheme": "",
+  "adminTheme": "",
+  "emailTheme": "",
+  "eventsEnabled": false,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "enabledEventTypes": [],
+  "adminEventsEnabled": false,
+  "adminEventsDetailsEnabled": false,
+  "identityProviders": [],
+  "identityProviderMappers": [],
+  "components": {
+    "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
+      {
+        "id": "8534c23b-b941-4777-a055-443de21d046e",
+        "name": "Trusted Hosts",
+        "providerId": "trusted-hosts",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {
+          "host-sending-registration-request-must-match": [
+            "true"
+          ],
+          "client-uris-must-match": [
+            "true"
+          ]
+        }
+      },
+      {
+        "id": "05ce9bcb-e82a-4fc6-9233-bf5830323cf4",
+        "name": "Allowed Registration Web Origins",
+        "providerId": "registration-web-origins",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {}
+      },
+      {
+        "id": "c7dbd5a1-01ec-43c2-ac6b-0840b815b920",
+        "name": "Full Scope Disabled",
+        "providerId": "scope",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {}
+      },
+      {
+        "id": "2465b2da-3de0-457d-9c61-39700bd218bd",
+        "name": "Allowed Client Scopes",
+        "providerId": "allowed-client-templates",
+        "subType": "authenticated",
+        "subComponents": {},
+        "config": {
+          "allow-default-scopes": [
+            "true"
+          ]
+        }
+      },
+      {
+        "id": "90c4ff1a-689c-4c4b-862c-294cc06c873e",
+        "name": "Consent Required",
+        "providerId": "consent-required",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {}
+      },
+      {
+        "id": "cac996a9-1c89-4313-b185-6996c4cb7718",
+        "name": "Allowed Protocol Mapper Types",
+        "providerId": "allowed-protocol-mappers",
+        "subType": "authenticated",
+        "subComponents": {},
+        "config": {
+          "allowed-protocol-mapper-types": [
+            "oidc-full-name-mapper",
+            "saml-user-attribute-mapper",
+            "saml-user-property-mapper",
+            "oidc-address-mapper",
+            "saml-role-list-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-usermodel-property-mapper",
+            "oidc-usermodel-attribute-mapper"
+          ]
+        }
+      },
+      {
+        "id": "38422884-f2ca-4b37-8d76-fffdc262efdd",
+        "name": "Max Clients Limit",
+        "providerId": "max-clients",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {
+          "max-clients": [
+            "200"
+          ]
+        }
+      },
+      {
+        "id": "97b2aa2f-376a-4867-bcb3-a6b2309c2a00",
+        "name": "Allowed Protocol Mapper Types",
+        "providerId": "allowed-protocol-mappers",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {
+          "allowed-protocol-mapper-types": [
+            "saml-role-list-mapper",
+            "saml-user-attribute-mapper",
+            "oidc-usermodel-property-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-full-name-mapper",
+            "oidc-usermodel-attribute-mapper",
+            "saml-user-property-mapper",
+            "oidc-address-mapper"
+          ]
+        }
+      },
+      {
+        "id": "c46de578-780a-42b8-b51c-4fb555890a5f",
+        "name": "Allowed Client Scopes",
+        "providerId": "allowed-client-templates",
+        "subType": "anonymous",
+        "subComponents": {},
+        "config": {
+          "allow-default-scopes": [
+            "true"
+          ]
+        }
+      },
+      {
+        "id": "0389d6ec-9c77-4262-913d-1a4fa0ace48f",
+        "name": "Allowed Registration Web Origins",
+        "providerId": "registration-web-origins",
+        "subType": "authenticated",
+        "subComponents": {},
+        "config": {}
+      }
+    ],
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "id": "e7605698-4a5d-4eaf-95e6-6d9f1cc02c09",
+        "name": "hmac-generated-hs512",
+        "providerId": "hmac-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ],
+          "algorithm": [
+            "HS512"
+          ]
+        }
+      },
+      {
+        "id": "dd6d7b25-15ca-47ef-88e6-99b6ee136a82",
+        "name": "rsa-enc-generated",
+        "providerId": "rsa-enc-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ],
+          "algorithm": [
+            "RSA-OAEP"
+          ]
+        }
+      },
+      {
+        "id": "b1413914-6823-4a16-9684-b17b15d98a7e",
+        "name": "rsa-generated",
+        "providerId": "rsa-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ]
+        }
+      },
+      {
+        "id": "f21258c8-b542-4f02-984a-213fb28e4c29",
+        "name": "aes-generated",
+        "providerId": "aes-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ]
+        }
+      }
+    ]
+  },
+  "internationalizationEnabled": false,
+  "authenticationFlows": [
+    {
+      "id": "0f25eb38-bb24-4155-a575-6eeaa26a3b0e",
+      "alias": "Account verification options",
+      "description": "Method with which to verify the existing account",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-email-verification",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "Verify Existing Account by Re-authentication",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "116bd3aa-7557-47b1-9cb8-792ac823b0f9",
+      "alias": "Browser - Conditional 2FA",
+      "description": "Flow to determine if any 2FA is required for the authentication",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorConfig": "browser-conditional-credential",
+          "authenticator": "conditional-credential",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "webauthn-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 40,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-recovery-authn-code-form",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 50,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "5ac0abf1-0573-483c-b679-7531183104e5",
+      "alias": "Browser - Conditional Organization",
+      "description": "Flow to determine if the organization identity-first login is to be used",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "organization",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "ec40b4ff-60c1-4e14-9649-90fe70e2c2bc",
+      "alias": "Direct Grant - Conditional OTP",
+      "description": "Flow to determine if the OTP is required for the authentication",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "direct-grant-validate-otp",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "1fc02e26-c4df-4746-a262-e269f2d4c7e8",
+      "alias": "First Broker Login - Conditional Organization",
+      "description": "Flow to determine if the authenticator that adds organization members is to be used",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "idp-add-organization-member",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "31520cd6-c84d-458e-88e7-8a568d467a7e",
+      "alias": "First broker login - Conditional 2FA",
+      "description": "Flow to determine if any 2FA is required for the authentication",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorConfig": "first-broker-login-conditional-credential",
+          "authenticator": "conditional-credential",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "webauthn-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 40,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-recovery-authn-code-form",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 50,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "c629471e-2de9-4015-90f3-d4f6cf277458",
+      "alias": "Handle Existing Account",
+      "description": "Handle what to do if there is existing account with same email/username like authenticated identity provider",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-confirm-link",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "Account verification options",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "88c8fff4-84a7-4c33-8f96-45ab2b58f3fa",
+      "alias": "Organization",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "autheticatorFlow": true,
+          "flowAlias": "Browser - Conditional Organization",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "36fd092b-2d9d-4151-aeff-142ff060796f",
+      "alias": "Reset - Conditional OTP",
+      "description": "Flow to determine if the OTP should be reset or not. Set to REQUIRED to force.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-otp",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "9114b3f8-6262-4d5f-9086-f0e39f86a899",
+      "alias": "User creation or linking",
+      "description": "Flow for the existing/non-existing user alternatives",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticatorConfig": "create unique user config",
+          "authenticator": "idp-create-user-if-unique",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "Handle Existing Account",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "11b8151e-5386-4685-99b4-f3c7760f7c6d",
+      "alias": "Verify Existing Account by Re-authentication",
+      "description": "Reauthentication of existing account",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "First broker login - Conditional 2FA",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "77911134-1cbf-44c2-a821-80c02bb8a980",
+      "alias": "browser",
+      "description": "Browser based authentication",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-spnego",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 25,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 26,
+          "autheticatorFlow": true,
+          "flowAlias": "Organization",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "autheticatorFlow": true,
+          "flowAlias": "forms",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "3660f304-7d11-4495-9cff-de1194de5160",
+      "alias": "clients",
+      "description": "Base authentication for clients",
+      "providerId": "client-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "client-secret",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "client-jwt",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "client-secret-jwt",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "client-x509",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 40,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "federated-jwt",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 50,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "780a5c44-a598-4c90-b8d4-3b8d913b31fb",
+      "alias": "direct grant",
+      "description": "OpenID Connect Resource Owner Grant",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "direct-grant-validate-username",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "direct-grant-validate-password",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 30,
+          "autheticatorFlow": true,
+          "flowAlias": "Direct Grant - Conditional OTP",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "31c4419e-8b9d-4009-943f-d1362b89c078",
+      "alias": "docker auth",
+      "description": "Used by Docker clients to authenticate against the IDP",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "docker-http-basic-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "6f5ba981-794f-47c3-a512-1d398d37873c",
+      "alias": "first broker login",
+      "description": "Actions taken after first broker login with identity provider account, which is not yet linked to any Keycloak account",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticatorConfig": "review profile config",
+          "authenticator": "idp-review-profile",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "User creation or linking",
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 60,
+          "autheticatorFlow": true,
+          "flowAlias": "First Broker Login - Conditional Organization",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "e43e44b8-3218-4b7d-8e10-08cd8db03574",
+      "alias": "forms",
+      "description": "Username, password, otp and other auth forms.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "Browser - Conditional 2FA",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "d9a2e3aa-e774-41b5-8834-ceda542ff841",
+      "alias": "registration",
+      "description": "Registration flow",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-page-form",
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": true,
+          "flowAlias": "registration form",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "38a01edf-6701-4e41-8cd9-d54b4b5a1469",
+      "alias": "registration form",
+      "description": "Registration form",
+      "providerId": "form-flow",
+      "topLevel": false,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "registration-user-creation",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-password-action",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 50,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-recaptcha-action",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 60,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "registration-terms-and-conditions",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 70,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "13e992f4-9001-4c73-aeaf-c51eada68af7",
+      "alias": "reset credentials",
+      "description": "Reset credentials for a user if they forgot their password or something",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "reset-credentials-choose-user",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-credential-email",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-password",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "CONDITIONAL",
+          "priority": 40,
+          "autheticatorFlow": true,
+          "flowAlias": "Reset - Conditional OTP",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "b146d862-ddc5-42f7-bee9-b6fcd5e09578",
+      "alias": "saml ecp",
+      "description": "SAML ECP Profile Authentication Flow",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": true,
+      "authenticationExecutions": [
+        {
+          "authenticator": "http-basic-authenticator",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "id": "30eb03fd-4b17-4ff0-b786-97378f367e58",
+      "alias": "browser-conditional-credential",
+      "config": {
+        "credentials": "webauthn-passwordless"
+      }
+    },
+    {
+      "id": "4ed8bb47-b7fe-4e45-963b-f03d3b915865",
+      "alias": "create unique user config",
+      "config": {
+        "require.password.update.after.registration": "false"
+      }
+    },
+    {
+      "id": "1afe7d9b-3ccf-4517-b135-af6ae883b1ce",
+      "alias": "first-broker-login-conditional-credential",
+      "config": {
+        "credentials": "webauthn-passwordless"
+      }
+    },
+    {
+      "id": "64d2fce9-4b44-4436-9a84-094e6bbcfce6",
+      "alias": "review profile config",
+      "config": {
+        "update.profile.on.first.login": "missing"
+      }
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 10,
+      "config": {}
+    },
+    {
+      "alias": "TERMS_AND_CONDITIONS",
+      "name": "Terms and Conditions",
+      "providerId": "TERMS_AND_CONDITIONS",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 20,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PROFILE",
+      "name": "Update Profile",
+      "providerId": "UPDATE_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 40,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
+    },
+    {
+      "alias": "delete_account",
+      "name": "Delete Account",
+      "providerId": "delete_account",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 60,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_EMAIL",
+      "name": "Update Email",
+      "providerId": "UPDATE_EMAIL",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 70,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register",
+      "name": "Webauthn Register",
+      "providerId": "webauthn-register",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 80,
+      "config": {}
+    },
+    {
+      "alias": "webauthn-register-passwordless",
+      "name": "Webauthn Register Passwordless",
+      "providerId": "webauthn-register-passwordless",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 90,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_PROFILE",
+      "name": "Verify Profile",
+      "providerId": "VERIFY_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 100,
+      "config": {}
+    },
+    {
+      "alias": "delete_credential",
+      "name": "Delete Credential",
+      "providerId": "delete_credential",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 110,
+      "config": {}
+    },
+    {
+      "alias": "idp_link",
+      "name": "Linking Identity Provider",
+      "providerId": "idp_link",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 120,
+      "config": {}
+    },
+    {
+      "alias": "CONFIGURE_RECOVERY_AUTHN_CODES",
+      "name": "Recovery Authentication Codes",
+      "providerId": "CONFIGURE_RECOVERY_AUTHN_CODES",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 130,
+      "config": {}
+    },
+    {
+      "alias": "update_user_locale",
+      "name": "Update User Locale",
+      "providerId": "update_user_locale",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 1000,
+      "config": {}
+    }
+  ],
+  "browserFlow": "browser",
+  "registrationFlow": "registration",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients",
+  "dockerAuthenticationFlow": "docker auth",
+  "firstBrokerLoginFlow": "first broker login",
+  "attributes": {
+    "cibaBackchannelTokenDeliveryMode": "poll",
+    "cibaAuthRequestedUserHint": "login_hint",
+    "oauth2DevicePollingInterval": "5",
+    "clientOfflineSessionMaxLifespan": "0",
+    "clientSessionIdleTimeout": "0",
+    "actionTokenGeneratedByUserLifespan.verify-email": "",
+    "actionTokenGeneratedByUserLifespan.idp-verify-account-via-email": "",
+    "clientOfflineSessionIdleTimeout": "0",
+    "actionTokenGeneratedByUserLifespan.execute-actions": "",
+    "cibaInterval": "5",
+    "realmReusableOtpCode": "false",
+    "cibaExpiresIn": "120",
+    "oauth2DeviceCodeLifespan": "600",
+    "parRequestUriLifespan": "60",
+    "clientSessionMaxLifespan": "0",
+    "scimApiEnabled": "false",
+    "shortVerificationUri": "",
+    "actionTokenGeneratedByUserLifespan.reset-credentials": "",
+    "darkMode": "true"
+  },
+  "keycloakVersion": "26.6.3",
+  "userManagedAccessAllowed": false,
+  "organizationsEnabled": false,
+  "verifiableCredentialsEnabled": false,
+  "adminPermissionsEnabled": false,
+  "scimApiEnabled": false,
+  "clientProfiles": {
+    "profiles": []
+  },
+  "clientPolicies": {
+    "policies": []
+  }
+}
 
 bff/tsconfig.json
 -----------------
@@ -2363,17 +4424,13 @@ bff/src/app.module.ts
 ---------------------
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
-
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { SessionModule } from './session/session.module';
 import { RedisModule } from './redis/redis.module';
 import { SharedModule } from './shared/shared.module';
-
-import { SessionContextInterceptor } from './shared/interceptors/session-context.interceptor';
 import { AuthGuard } from './auth/guards/auth.guard';
-
 import { HealthController } from './shared/controllers/health.controller';
 
 @Module({
@@ -2386,10 +4443,7 @@ import { HealthController } from './shared/controllers/health.controller';
     GatewayModule,
   ],
   controllers: [HealthController],
-  providers: [
-    { provide: APP_INTERCEPTOR, useClass: SessionContextInterceptor },
-    { provide: APP_GUARD, useClass: AuthGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}
 
@@ -2400,74 +4454,32 @@ import { NestFactory } from '@nestjs/core';
 import express from 'express';
 import { AppModule } from './app.module';
 import { config } from './config/config';
-import { RedisService } from './redis/services/redis.service';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
 import { Logger } from './shared/logger/logger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-
-import session from 'express-session';
-import RedisStore from 'connect-redis';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Глобальная валидация
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true, // удаляет поля без декораторов в DTO
-      forbidNonWhitelisted: true, // ошибка, если есть лишние поля
-      transform: true, // преобразует строки в числа, boolean и т.д.
-    }),
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
-
-  const redis = app.get(RedisService);
-
-  // Trust proxy (behind nginx)
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
-
-  // Security
   app.use(helmet());
   app.use(cookieParser());
-
-  // Body parsers
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-
-  // Global error handler
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const isProd = config.isProduction;
-
-  // Session with Redis store
-  app.use(
-    session({
-      store: new RedisStore({ client: redis.client, prefix: config.session.prefix }),
-      secret: config.session.secret,
-      name: config.session.cookieName,
-      resave: false,
-      saveUninitialized: false,
-      rolling: true,
-      cookie: {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        maxAge: config.session.ttl * 1000,
-      },
-    }),
-  );
-
-  // CORS
   app.enableCors({
     origin: config.corsOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
-  // Graceful shutdown
   app.enableShutdownHooks();
-
   await app.listen(config.port);
   Logger.info('App', `Running on http://localhost:${config.port}`);
 }
@@ -2507,20 +4519,28 @@ export class GatewayModule {}
 
 bff/src/gateway/services/axios-http-client.service.ts
 -----------------------------------------------------
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import { Request } from 'express';
 import { AuthService } from '../../auth/services/auth.service';
 import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
 import { SessionService } from '../../session/services/session.service';
 import { Logger } from '../../shared/logger/logger';
-import { errorMessage } from '../../shared/utils/utils';
 import { isKeycloakErrorBody } from '../../shared/utils/is-keycloak-error-body';
+import { Session } from '../../types/session';
+
+// Расширяем стандартный конфиг Axios для поддержки флага ретрая
+export interface RetryableConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
 
 @Injectable()
 export class AxiosHttpClient {
   readonly client: AxiosInstance;
 
   constructor(
+    @Inject(REQUEST) private readonly request: Request,
     private readonly authService: AuthService,
     private readonly refreshLock: TokenRefreshLock,
     private readonly sessionService: SessionService,
@@ -2534,63 +4554,97 @@ export class AxiosHttpClient {
   }
 
   private attachToken(cfg: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-    let session;
-    try {
-      session = this.sessionService.get();
-    } catch {
-      return cfg;
+    if (this.request.session) {
+      cfg.headers.Authorization = `Bearer ${this.request.session.tokens.accessToken}`;
     }
-    cfg.headers.Authorization = `Bearer ${session.auth.tokens.accessToken}`;
     return cfg;
   }
 
+  // Level 1: Карта логики
   private async handleResponseError(error: AxiosError) {
     try {
-      await this.refreshTokens(error);
-      return await this.client(error.config as InternalAxiosRequestConfig);
+      await this.refreshTokens(error); // обновляем токен или кидает ошибку
+      return await this.client(error.config as RetryableConfig); // повторяем запрос
     } catch (err) {
-      if (this.isInvalidGrant(err)) {
-        Logger.error('HttpClient', 'invalid_grant — destroying session');
-        await this.destroySession();
-        throw new UnauthorizedException('Session expired');
-      }
+      await this.handleRefreshError(err); // обрабатываем ошибку обновления или кидает 401
+      throw error; // пробрасываем оригинальную ошибку
+    }
+  }
+
+  // Level 2: Оглавление
+  private async refreshTokens(error: AxiosError): Promise<void> {
+    const config = this.validateRetry(error); // валидируем и получаем конфиг или кидает ошибку
+    const session = this.getSession(); // берем сессию или кидает ошибку
+    const retryConfig = this.markRetry(config); // помечаем запрос как повторный
+    await this.performRefresh(session, retryConfig); // обновляем токен или кидает ошибку
+  }
+
+  // Level 3: Шаги с деталями
+  private validateRetry(error: AxiosError): InternalAxiosRequestConfig {
+    const config = error.config;
+    if (error.response?.status !== 401 || !config || (config as RetryableConfig)._retry) {
       throw error;
     }
+    return config;
   }
 
-  private async refreshTokens(error: AxiosError): Promise<void> {
-    if (error.response?.status !== 401) throw error;
-    if (!error.config || error.config._retry) throw error;
+  private getSession(): Session {
+    const session = this.request.session;
+    if (!session) throw new Error('No session found in request context');
+    return session;
+  }
 
-    const session = this.sessionService.get();
-    error.config._retry = true;
-    const reqCfg = error.config;
+  // Помечаем запрос как повторный для предотвращения бесконечного цикла ретраев
+  private markRetry(config: InternalAxiosRequestConfig): RetryableConfig {
+    return { ...config, _retry: true };
+  }
 
-    const acquired = await this.refreshLock.acquire(session.id);
-
+  private async performRefresh(session: Session, config: RetryableConfig): Promise<void> {
+    const { acquired, owner } = await this.refreshLock.acquire(session.id); // пытаемся забрать lock
     if (!acquired) {
-      await this.refreshLock.waitAndRetry(session.id);
-      await this.sessionService.reload(session);
-      this.applyToken(session.auth.tokens.accessToken, reqCfg);
+      await this.handleConcurrentRefresh(session); // ждем параллельное обновление
       return;
     }
-
     try {
-      Logger.warn('HttpClient', '401 — refreshing token', { url: reqCfg.url });
-      const newTokens = await this.authService.refreshTokens(session);
-      this.applyToken(newTokens.accessToken, reqCfg);
-      Logger.info('HttpClient', 'Token refreshed, retrying', { url: reqCfg.url });
+      await this.executeRefresh(session, config); // выполняем обновление
     } finally {
-      await this.refreshLock.release(session.id);
+      await this.refreshLock.release(session.id, owner); // освобождаем lock с указанием владельца
     }
   }
 
+  // Level 4: Атомарные действия
+  // Обрабатываем конкурентное обновление токена: ждем разблокировки и обновляем локальный контекст
+  private async handleConcurrentRefresh(session: Session): Promise<void> {
+    await this.refreshLock.waitAndRetry(session.id); // ждем разблокировки
+    const updated = await this.sessionService.get(session.id); // берем обновленную сессию
+
+    if (!updated) {
+      throw new UnauthorizedException('Session expired during refresh'); // бросаем 401 если сессия исчезла
+    }
+
+    this.request.session = updated; // обновляем контекст запроса
+  }
+
+  // Выполняем обновление токенов через Auth сервис и обновляем контекст запроса
+  private async executeRefresh(session: Session, config: RetryableConfig): Promise<void> {
+    Logger.warn('HttpClient', '401 — refreshing token', { url: config.url });
+    const newTokens = await this.authService.refreshTokens(session.id, session.tokens); // обновляем токены в Keycloak и Redis
+    this.request.session = { ...session, tokens: newTokens }; // обновляем сессию в памяти
+    Logger.info('HttpClient', 'Token refreshed, retrying', { url: config.url });
+  }
+
+  // Level 5: Примитивы
   private async destroySession(): Promise<void> {
-    try {
-      const session = this.sessionService.get();
-      await this.sessionService.destroy(session);
-    } catch (innerErr: unknown) {
-      Logger.error('HttpClient', `Failed to destroy session: ${errorMessage(innerErr)}`);
+    const session = this.request.session;
+    if (session) {
+      await this.sessionService.destroy(session.id, session.user.id); // удаляем сессию из Redis
+    }
+  }
+
+  private async handleRefreshError(err: unknown) {
+    if (this.isInvalidGrant(err)) {
+      await this.destroySession(); // уничтожаем сессию
+      throw new UnauthorizedException('Session expired'); // бросаем 401
     }
   }
 
@@ -2599,10 +4653,6 @@ export class AxiosHttpClient {
     if (error.response?.status !== 400) return false;
     const { data } = error.response;
     return isKeycloakErrorBody(data) && data.error === 'invalid_grant';
-  }
-
-  private applyToken(accessToken: string, reqCfg: InternalAxiosRequestConfig): void {
-    reqCfg.headers.Authorization = `Bearer ${accessToken}`;
   }
 }
 
@@ -2645,7 +4695,7 @@ export class HttpClient {
 
 bff/src/gateway/controllers/gateway.controller.ts
 -------------------------------------------------
-import { Controller, Get, Post, Put, Delete, Patch, Req, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Req, Param, BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
 import { HttpClient } from '../services/http-client.service';
 import { config } from '../../config/config';
@@ -2661,49 +4711,40 @@ export class GatewayController {
 
   @Get('*')
   async get(@Param('0') path: string) {
-    return this.http.get(`${config.protectedServiceUrl}/${path}`);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.get(`${config.protectedServiceUrl}/${sanitizedPath}`);
   }
 
   @Post('*')
   async post(@Param('0') path: string, @Req() req: Request) {
-    return this.http.post(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.post(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Put('*')
   async put(@Param('0') path: string, @Req() req: Request) {
-    return this.http.put(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.put(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Delete('*')
   async delete(@Param('0') path: string) {
-    return this.http.delete(`${config.protectedServiceUrl}/${path}`);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.delete(`${config.protectedServiceUrl}/${sanitizedPath}`);
   }
 
   @Patch('*')
   async patch(@Param('0') path: string, @Req() req: Request) {
-    return this.http.patch(`${config.protectedServiceUrl}/${path}`, req.body);
+    const sanitizedPath = this.sanitizePath(path); // очищаем путь от ../
+    return this.http.patch(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
-}
 
-
-bff/src/types/auth-session.interface.ts
----------------------------------------
-export interface SessionUser {
-  id: string;
-  username: string;
-  email: string;
-  roles: string[];
-}
-
-export interface SessionTokens {
-  accessToken: string;
-  refreshToken: string;
-  idToken: string;
-}
-
-export interface AuthSession {
-  user: SessionUser;
-  tokens: SessionTokens;
+  private sanitizePath(path: string): string {
+    if (path.includes('..')) {
+      throw new BadRequestException('Invalid path: path traversal is not allowed');
+    }
+    return path.replace(/^\//, '');
+  }
 }
 
 
@@ -2714,6 +4755,19 @@ import 'axios';
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
     _retry?: boolean;
+  }
+}
+
+
+bff/src/types/express.d.ts
+--------------------------
+import { Session } from './session';
+
+declare global {
+  namespace Express {
+    interface Request {
+      session?: Session;
+    }
   }
 }
 
@@ -2729,11 +4783,12 @@ export interface TokenSet {
 }
 
 export interface KeycloakJwtPayload extends JWTPayload {
-  email?: string;
-  preferred_username?: string;
-  name?: string;
-  realm_access?: { roles?: string[] };
-  resource_access?: Record<string, { roles?: string[] }>;
+  sub: string;
+  email: string;
+  preferred_username: string;
+  name: string;
+  realm_access: { roles?: string[] };
+  resource_access: Record<string, { roles?: string[] }>;
 }
 
 export interface KeycloakErrorBody {
@@ -2742,20 +4797,26 @@ export interface KeycloakErrorBody {
 }
 
 
-bff/src/types/session.d.ts
---------------------------
-import 'express-session';
-import type { Session, SessionData } from 'express-session';
-import { AuthSession } from './auth-session.interface';
-
-declare module 'express-session' {
-  interface SessionData {
-    auth?: AuthSession;
-  }
+bff/src/types/session.ts
+------------------------
+export interface SessionUser {
+  id: string;
+  username: string;
+  email: string;
+  roles: string[];
 }
 
-export type RawSession = Session & Partial<SessionData>;
-export type AuthenticatedSession = Session & { auth: AuthSession };
+export interface SessionTokens {
+  accessToken: string;
+  refreshToken: string;
+  idToken: string;
+}
+
+export interface Session {
+  id: string;
+  user: SessionUser;
+  tokens: SessionTokens;
+}
 
 
 bff/src/redis/redis.module.ts
@@ -2797,7 +4858,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    await this.client.connect();
+    try {
+      await this.client.connect();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      Logger.error('Redis', `Failed to connect to Redis: ${errorMessage}`);
+      // Не бросаем ошибку, чтобы приложение могло запуститься (хотя будет работать в degraded mode)
+    }
   }
 
   async onModuleDestroy() {
@@ -2841,10 +4908,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async deleteUserSessions(userId: string): Promise<void> {
     const sessionIds = await this.getUserSessions(userId);
-    for (const sid of sessionIds) {
-      await this.client.del(`${config.session.prefix}${sid}`);
+    if (sessionIds.length > 0) {
+      const keys = sessionIds.map(sid => `${config.session.prefix}${sid}`);
+      await this.client.del(keys); // удаляем все ключи сессий одним запросом
     }
-    await this.client.del(RedisKeys.userSessions(userId));
+    await this.client.del(RedisKeys.userSessions(userId)); // удаляем список сессий пользователя
   }
 
   async refreshUserSessionTtl(userId: string): Promise<void> {
@@ -2873,6 +4941,24 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+// Helper to ensure environment variables are present
+function getEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Environment variable ${name} is required but was not found.`);
+  }
+  return value;
+}
+
+function getEnvInt(name: string): number {
+  const value = getEnv(name);
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Environment variable ${name} must be a number.`);
+  }
+  return parsed;
+}
+
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret || sessionSecret.length < 32) {
   throw new Error(
@@ -2880,68 +4966,42 @@ if (!sessionSecret || sessionSecret.length < 32) {
   );
 }
 
-const port = parseInt(process.env.PORT || '3000', 10);
-if (Number.isNaN(port)) {
-  throw new Error('PORT must be a number');
-}
-
-const sessionTtl = parseInt(process.env.SESSION_TTL || '86400', 10);
-if (Number.isNaN(sessionTtl)) {
-  throw new Error('SESSION_TTL must be a number');
-}
-
-const DEFAULT_FRONTEND = 'http://localhost:8082';
-
-const nodeEnv = process.env.NODE_ENV || 'development';
-
-const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET || '';
-if (nodeEnv === 'production' && !clientSecret) {
-  throw new Error('KEYCLOAK_CLIENT_SECRET is required in production');
-}
+const port = getEnvInt('PORT');
+const sessionTtl = getEnvInt('SESSION_TTL');
+const nodeEnv = getEnv('NODE_ENV');
+const clientSecret = getEnv('KEYCLOAK_CLIENT_SECRET');
 
 export const config = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
   port,
-  frontendUrl: process.env.FRONTEND_URL || DEFAULT_FRONTEND,
-  protectedServiceUrl: process.env.PROTECTED_SERVICE_URL || 'http://protected-service:8080',
+  frontendUrl: getEnv('FRONTEND_URL'),
+  protectedServiceUrl: getEnv('PROTECTED_SERVICE_URL'),
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
-    : [process.env.FRONTEND_URL || DEFAULT_FRONTEND],
+    : [getEnv('FRONTEND_URL')],
   session: {
     secret: sessionSecret,
-    cookieName: process.env.SESSION_COOKIE_NAME || 'connect.sid',
-    prefix: process.env.SESSION_PREFIX || 'sess:',
+    cookieName: getEnv('SESSION_COOKIE_NAME'),
+    prefix: getEnv('SESSION_PREFIX'),
     ttl: sessionTtl,
-    oauthStateTtl: parseInt(process.env.OAUTH_STATE_TTL || '600', 10),
+    oauthStateTtl: getEnvInt('OAUTH_STATE_TTL'),
   },
   keycloak: {
-    issuer: process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
-    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || process.env.KEYCLOAK_ISSUER || 'http://localhost:8080/realms/TestRealm',
-    clientId: process.env.KEYCLOAK_CLIENT_ID || 'bff-client',
+    issuer: getEnv('KEYCLOAK_ISSUER'),
+    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || getEnv('KEYCLOAK_ISSUER'),
+    clientId: getEnv('KEYCLOAK_CLIENT_ID'),
     clientSecret,
-    redirectUri: process.env.KEYCLOAK_REDIRECT_URI || 'http://localhost:3000/callback',
-    logoutRedirectUri: process.env.KEYCLOAK_LOGOUT_REDIRECT_URI || `http://localhost:${port}/login`,
+    redirectUri: getEnv('KEYCLOAK_REDIRECT_URI'),
+    logoutRedirectUri: getEnv('KEYCLOAK_LOGOUT_REDIRECT_URI'),
   },
   redis: {
     url:
       process.env.REDIS_URL ||
-      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`,
+      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${getEnv('REDIS_HOST')}:${getEnv('REDIS_PORT')}`,
     password: process.env.REDIS_PASSWORD || undefined,
   },
 } as const;
-
-
-bff/src/shared/request-context.ts
----------------------------------
-import { AsyncLocalStorage } from 'async_hooks';
-import { Request } from 'express';
-
-export interface RequestCtx {
-  req: Request;
-}
-
-export const requestContext = new AsyncLocalStorage<RequestCtx>();
 
 
 bff/src/shared/shared.module.ts
@@ -2985,9 +5045,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof AxiosError && exception.response) {
       status = exception.response.status;
       const data = exception.response.data as Record<string, unknown> | undefined;
-      message = String(
-        data?.error_description || data?.message || data?.error || exception.response.statusText,
-      );
+
+      // Возвращаем детали только если это стандартная ошибка OAuth2, иначе — общую фразу
+      const isOAuthError = data?.error === 'invalid_grant' || data?.error === 'access_denied';
+      message = isOAuthError
+        ? String(data?.error_description || data?.error || 'OAuth error')
+        : 'Backend service error';
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
     }
@@ -3034,7 +5097,7 @@ function maskPII(fields?: LogFields): LogFields | undefined {
   if (!fields) return undefined;
   const masked = { ...fields };
   for (const key of Object.keys(masked)) {
-    if (['email', 'preferred_username', 'user'].includes(key) && typeof masked[key] === 'string') {
+    if (['email', 'preferred_username', 'user', 'accessToken', 'refreshToken', 'client_secret', 'code', 'state', 'password'].includes(key) && typeof masked[key] === 'string') {
       masked[key] = '***';
     }
   }
@@ -3068,35 +5131,6 @@ export const Logger = {
   warn: (svc: string, msg: string, f?: LogFields) => log(svc, 'WARN', msg, f),
   error: (svc: string, msg: string, f?: LogFields) => log(svc, 'ERROR', msg, f),
 };
-
-
-bff/src/shared/interceptors/session-context.interceptor.ts
-----------------------------------------------------------
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { requestContext } from '../request-context';
-
-@Injectable()
-export class SessionContextInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const req = context.switchToHttp().getRequest();
-    return requestContext.run({ req }, () => next.handle());
-  }
-}
-
-
-bff/src/shared/utils/assert-authenticated.ts
---------------------------------------------
-import { UnauthorizedException } from '@nestjs/common';
-import type { RawSession, AuthenticatedSession } from '../../types/session';
-
-export function assertAuthenticated(
-  session: RawSession | undefined,
-): asserts session is AuthenticatedSession {
-  if (!session?.auth) {
-    throw new UnauthorizedException('Not authenticated');
-  }
-}
 
 
 bff/src/shared/utils/is-keycloak-error-body.ts
@@ -3160,7 +5194,6 @@ import { KeycloakClient } from './services/keycloak.service';
 import { JwksService } from './services/jwks.service';
 import { BackchannelService } from './services/backchannel.service';
 import { OAuthCallbackInterceptor } from './interceptors/oauth-callback.interceptor';
-import { SessionFactory } from './services/session.factory';
 import { RedisModule } from '../redis/redis.module';
 import { SessionModule } from '../session/session.module';
 
@@ -3173,7 +5206,6 @@ import { SessionModule } from '../session/session.module';
     JwksService,
     BackchannelService,
     OAuthCallbackInterceptor,
-    SessionFactory,
   ],
   exports: [AuthService],
 })
@@ -3182,19 +5214,18 @@ export class AuthModule {}
 
 bff/src/auth/services/auth.service.ts
 -------------------------------------
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { decodeJwt } from 'jose';
 import * as crypto from 'crypto';
+import { Response } from 'express';
 import { config } from '../../config/config';
 import { RedisService } from '../../redis/services/redis.service';
 import { SessionService } from '../../session/services/session.service';
 import { KeycloakClient } from './keycloak.service';
-import { SessionFactory } from './session.factory';
 import { Logger } from '../../shared/logger/logger';
 import { errorMessage } from '../../shared/utils/utils';
 import { KeycloakJwtPayload } from '../../types/keycloak';
-import { SessionTokens } from '../../types/auth-session.interface';
-import type { RawSession, AuthenticatedSession } from '../../types/session';
+import type { Session, SessionTokens } from '../../types/session';
 
 @Injectable()
 export class AuthService {
@@ -3202,15 +5233,13 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly keycloak: KeycloakClient,
     private readonly sessionService: SessionService,
-    private readonly sessionFactory: SessionFactory,
   ) {}
 
+  // Создаем URL для авторизации в Keycloak
   async buildAuthorizationUrl(): Promise<string> {
-    const codeVerifier = crypto.randomBytes(32).toString('hex');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest().toString('base64url');
-    const state = crypto.randomBytes(16).toString('hex');
-
-    await this.redis.setOAuthState(state, codeVerifier);
+    const { verifier, challenge } = this.generatePkce();       // генерируем PKCE пару
+    const state = crypto.randomBytes(16).toString('hex');     // создаем state
+    await this.redis.setOAuthState(state, verifier);          // сохраняем в Redis
 
     const params = new URLSearchParams({
       client_id: config.keycloak.clientId,
@@ -3218,66 +5247,92 @@ export class AuthService {
       redirect_uri: config.keycloak.redirectUri,
       scope: 'openid profile email',
       state,
-      code_challenge: codeChallenge,
+      code_challenge: challenge,
       code_challenge_method: 'S256',
     });
-
     return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
   }
 
-  async exchangeCode(code: string, state: string, session: RawSession): Promise<string> {
-    try {
-      const codeVerifier = await this.redis.getOAuthState(state);
-      if (!codeVerifier) {
-        Logger.warn('Auth', 'Invalid or expired OAuth state');
-        return `${config.frontendUrl}/login?error=invalid_state`;
-      }
-
-      const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier);
-      const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);
-      const authSession = this.sessionFactory.create(idPayload, tokenSet);
-
-      await this.sessionService.create(session, authSession);
-      await this.redis.deleteOAuthState(state);
-
-      Logger.info('Auth', 'Login complete', {
-        user: authSession.user.username || authSession.user.email,
-      });
-      return `${config.frontendUrl}/`;
-    } catch (err: unknown) {
-      Logger.error('Auth', `Callback error: ${errorMessage(err)}`);
-      return `${config.frontendUrl}/login?error=auth_failed`;
+  // Обмениваем authorization code на токены и создаем сессию
+  async exchangeCode(code: string, state: string): Promise<string> {
+    const codeVerifier = await this.redis.getOAuthState(state); // проверяем state в Redis
+    if (!codeVerifier) {
+      throw new BadRequestException('Invalid or expired OAuth state'); // бросаем ошибку если state невалиден
     }
+
+    const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier); // обмениваем код на токены
+    const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);     // парсим ID токен
+
+    const session = await this.sessionService.create(idPayload, tokenSet, idPayload.sub); // создаем сессию
+    await this.redis.deleteOAuthState(state); // удаляем state после использования
+
+    Logger.info('Auth', 'Login complete', {
+      user: session.user.username || session.user.email,
+    });
+    return session.id;
   }
 
-  async logout(session: AuthenticatedSession): Promise<string> {
-    const idToken = session.auth.tokens.idToken;
+  // Завершаем сессию локально и в Keycloak
+  async logout(session: Session): Promise<string> {
+    const idToken = session.tokens.idToken;
+    const refreshToken = session.tokens.refreshToken;
 
-    await this.sessionService.destroy(session).catch((err: unknown) => {
+    await this.sessionService.destroy(session.id, session.user.id).catch((err: unknown) => {
       Logger.error('AuthService', `Session destroy error: ${errorMessage(err)}`);
     });
 
     try {
-      await this.keycloak.revokeRefreshToken(session.auth.tokens.refreshToken);
+      await this.keycloak.revokeRefreshToken(refreshToken); // отзываем refresh token в Keycloak
     } catch (err: unknown) {
       Logger.warn('AuthService', `Failed to revoke refresh token: ${errorMessage(err)}`);
     }
 
-    return this.buildLogoutUrl(idToken);
+    return this.buildLogoutUrl(idToken); // возвращаем URL для выхода из Keycloak
   }
 
-  async refreshTokens(session: AuthenticatedSession): Promise<SessionTokens> {
-    const tokenSet = await this.keycloak.refreshTokens(session.auth.tokens.refreshToken);
-
+  // Обновляем токены сессии через Keycloak
+  async refreshTokens(sessionId: string, currentTokens: SessionTokens): Promise<SessionTokens> {
+    const tokenSet = await this.keycloak.refreshTokens(currentTokens.refreshToken); // запрашиваем новые токены
     const newTokens: SessionTokens = {
       accessToken: tokenSet.access_token,
-      refreshToken: tokenSet.refresh_token || session.auth.tokens.refreshToken,
+      refreshToken: tokenSet.refresh_token || currentTokens.refreshToken,
       idToken: tokenSet.id_token,
     };
-
-    await this.sessionService.saveTokens(session, newTokens);
-
+    await this.sessionService.updateTokens(sessionId, newTokens); // сохраняем обновленные токены
     return newTokens;
+  }
+
+  // Устанавливаем сессионную куку в ответ
+  async setSessionCookie(res: Response, sessionId: string) {
+    res.cookie(config.session.cookieName, sessionId, {
+      httpOnly: true,
+      secure: config.isProduction,
+      sameSite: 'strict',
+      maxAge: config.session.ttl * 1000,
+      path: '/',
+    });
+  }
+
+  // Очищаем сессионные куки в ответе
+  clearSessionCookies(res: Response) {
+    res.clearCookie(config.session.cookieName, {
+      path: '/',
+      sameSite: 'strict',
+      secure: config.isProduction,
+    });
+    res.clearCookie('XSRF-TOKEN', { path: '/' });
+  }
+
+  // --- Примитивы ---
+
+  private generatePkce() {
+    const verifier = crypto.randomBytes(32).toString('hex');
+    const challenge = crypto
+      .createHash('sha256')
+      .update(verifier)
+      .digest()
+      .toString('base64url');
+    return { verifier, challenge };
   }
 
   private buildLogoutUrl(idToken: string): string {
@@ -3300,6 +5355,13 @@ import { SessionService } from '../../session/services/session.service';
 import { Logger } from '../../shared/logger/logger';
 import { RedisKeys } from '../../redis/constants/redis-key-prefixes';
 
+// Явный интерфейс для Payload события Backchannel Logout
+interface BackchannelLogoutPayload extends JWTPayload {
+  events: {
+    'http://schemas.openid.net/event/backchannel-logout'?: unknown;
+  };
+}
+
 @Injectable()
 export class BackchannelService {
   constructor(
@@ -3309,24 +5371,24 @@ export class BackchannelService {
   ) {}
 
   async handleBackchannelLogout(logoutToken: string): Promise<void> {
-    const payload = await this.verifyLogoutToken(logoutToken);
-    await this.checkReplay(payload.jti);
-    const sub = this.validateSubClaim(payload);
-    await this.destroyUserSessions(sub);
+    const payload = await this.verifyLogoutToken(logoutToken); // верифицируем токен
+    await this.checkReplay(payload.jti);                      // проверяем на replay
+    const sub = this.validateSubClaim(payload);               // достаем sub или кидает ошибку
+    await this.destroyUserSessions(sub);                      // удаляем сессии
   }
 
-  private async verifyLogoutToken(logoutToken: string): Promise<JWTPayload> {
+  private async verifyLogoutToken(logoutToken: string): Promise<BackchannelLogoutPayload> {
     const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
       issuer: config.keycloak.publicIssuer,
       audience: config.keycloak.clientId,
     });
 
-    const events = payload.events as Record<string, unknown> | undefined;
-    if (!events?.['http://schemas.openid.net/event/backchannel-logout']) {
+    const logoutPayload = payload as BackchannelLogoutPayload;
+    if (!logoutPayload.events?.['http://schemas.openid.net/event/backchannel-logout']) {
       throw new UnauthorizedException('Missing backchannel-logout event');
     }
 
-    return payload;
+    return logoutPayload;
   }
 
   private async checkReplay(jti: string | undefined): Promise<void> {
@@ -3343,7 +5405,7 @@ export class BackchannelService {
     await this.redisService.client.set(key, '1', { EX: ttl });
   }
 
-  private validateSubClaim(payload: JWTPayload): string {
+  private validateSubClaim(payload: BackchannelLogoutPayload): string {
     if (!payload.sub) {
       throw new BadRequestException('Missing sub claim');
     }
@@ -3382,6 +5444,11 @@ import axios from 'axios';
 import { config } from '../../config/config';
 import { TokenSet } from '../../types/keycloak';
 
+interface KeycloakBaseParams {
+  client_id: string;
+  client_secret: string;
+}
+
 const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as const;
 
 @Injectable()
@@ -3389,7 +5456,11 @@ export class KeycloakClient {
   private readonly tokenEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/token`;
   private readonly revokeEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
 
-  private baseParams(): Record<string, string> {
+  private readonly axiosInstance = axios.create({
+    timeout: 5000,
+  });
+
+  private baseParams(): KeycloakBaseParams {
     return {
       client_id: config.keycloak.clientId,
       client_secret: config.keycloak.clientSecret,
@@ -3397,7 +5468,7 @@ export class KeycloakClient {
   }
 
   async exchangeCode(code: string, codeVerifier: string): Promise<TokenSet> {
-    const { data } = await axios.post<TokenSet>(
+    const { data } = await this.axiosInstance.post<TokenSet>(
       this.tokenEndpoint,
       new URLSearchParams({
         ...this.baseParams(),
@@ -3412,7 +5483,7 @@ export class KeycloakClient {
   }
 
   async refreshTokens(refreshToken: string): Promise<TokenSet> {
-    const { data } = await axios.post<TokenSet>(
+    const { data } = await this.axiosInstance.post<TokenSet>(
       this.tokenEndpoint,
       new URLSearchParams({
         ...this.baseParams(),
@@ -3425,7 +5496,7 @@ export class KeycloakClient {
   }
 
   async revokeRefreshToken(refreshToken: string): Promise<void> {
-    await axios.post(
+    await this.axiosInstance.post(
       this.revokeEndpoint,
       new URLSearchParams({
         ...this.baseParams(),
@@ -3438,57 +5509,6 @@ export class KeycloakClient {
 }
 
 
-bff/src/auth/services/session.factory.ts
-----------------------------------------
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { AuthSession, SessionTokens, SessionUser } from '../../types/auth-session.interface';
-import { KeycloakJwtPayload, TokenSet } from '../../types/keycloak';
-
-@Injectable()
-export class SessionFactory {
-  /** Создаёт полный объект аутентификации */
-  create(idPayload: KeycloakJwtPayload, tokenSet: TokenSet): AuthSession {
-    return {
-      user: this.buildUser(idPayload),
-      tokens: this.buildTokens(tokenSet),
-    };
-  }
-
-  /** Создаёт только токены (при рефреше) */
-  tokens(tokenSet: TokenSet): SessionTokens {
-    return this.buildTokens(tokenSet);
-  }
-
-  private buildUser(idPayload: KeycloakJwtPayload): SessionUser {
-    if (!idPayload.sub) {
-      throw new UnauthorizedException('ID token missing sub claim');
-    }
-    return {
-      id: idPayload.sub,
-      username: idPayload.preferred_username || '',
-      email: idPayload.email || '',
-      roles: this.extractRoles(idPayload),
-    };
-  }
-
-  private buildTokens(tokenSet: TokenSet): SessionTokens {
-    return {
-      accessToken: tokenSet.access_token,
-      refreshToken: tokenSet.refresh_token,
-      idToken: tokenSet.id_token,
-    };
-  }
-
-  private extractRoles(idPayload: KeycloakJwtPayload): string[] {
-    const realmRoles = idPayload.realm_access?.roles || [];
-    const clientRoles = Object.values(idPayload.resource_access || {}).flatMap(
-      (client) => client.roles || [],
-    );
-    return [...realmRoles, ...clientRoles];
-  }
-}
-
-
 bff/src/auth/interceptors/oauth-callback.interceptor.ts
 -------------------------------------------------------
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
@@ -3496,13 +5516,15 @@ import { Observable, EMPTY } from 'rxjs';
 import { Request, Response } from 'express';
 import { config } from '../../config/config';
 import { Logger } from '../../shared/logger/logger';
+import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()
 export class OAuthCallbackInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
-    const { error, code, state } = req.query;
+    const query = req.query as unknown as OAuthCallbackDto;
+    const { error, code, state } = query;
 
     if (error) {
       Logger.warn('Auth', `OAuth error: ${error}`);
@@ -3536,6 +5558,10 @@ import { IsString, IsOptional } from 'class-validator';
 
 export class OAuthCallbackDto {
   @IsString()
+  @IsOptional()
+  error?: string;
+
+  @IsString()
   code!: string;
 
   @IsString()
@@ -3553,14 +5579,15 @@ export class OAuthCallbackDto {
 
 bff/src/auth/controllers/auth.controller.ts
 -------------------------------------------
-import { Controller, Get, Post, Query, Req, Res, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Query, Res, UseInterceptors } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import { Public, Auth } from '../decorators/auth.decorator';
+import { Public, AuthSession } from '../decorators/auth.decorator';
 import { OAuthCallbackInterceptor } from '../interceptors/oauth-callback.interceptor';
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 import { config } from '../../config/config';
-import type { RawSession, AuthenticatedSession } from '../../types/session';
+import { Logger } from '../../shared/logger/logger';
+import { Session } from '../../types/session';
 
 @Controller()
 export class AuthController {
@@ -3576,35 +5603,27 @@ export class AuthController {
   @Public()
   @Get('callback')
   @UseInterceptors(OAuthCallbackInterceptor)
-  async callback(
-    @Query() query: OAuthCallbackDto,
-    @Req() req: { session: RawSession },
-    @Res() res: Response,
-  ) {
-    const redirectUrl = await this.authService.exchangeCode(
-      query.code,
-      query.state,
-      req.session,
-    );
-    res.redirect(redirectUrl);
+  async callback(@Query() query: OAuthCallbackDto, @Res() res: Response) {
+    try {
+      const sessionId = await this.authService.exchangeCode(query.code, query.state);
+      await this.authService.setSessionCookie(res, sessionId); // устанавливаем сессионную куку
+      res.redirect(`${config.frontendUrl}/`);                 // перенаправляем на фронтенд
+    } catch (err) {
+      Logger.error('AuthController', 'Callback failed', { error: (err as Error).message });
+      res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
+    }
   }
 
   @Get('api/me')
-  me(@Auth() session: AuthenticatedSession) {
-    return { user: session.auth.user };
+  me(@AuthSession() session: Session) {
+    return { user: session.user };
   }
 
   @Post('logout')
-  async logout(@Auth() session: AuthenticatedSession, @Res() res: Response) {
-    const logoutUrl = await this.authService.logout(session);
-
-    res.clearCookie(config.session.cookieName, {
-      path: '/',
-      sameSite: 'lax',
-      secure: config.isProduction,
-    });
-    res.clearCookie('XSRF-TOKEN', { path: '/' });
-    res.json({ logoutUrl });
+  async logout(@AuthSession() session: Session, @Res() res: Response) {
+    const logoutUrl = await this.authService.logout(session); // завершаем сессию и получаем URL выхода
+    this.authService.clearSessionCookies(res);                // очищаем все куки
+    res.json({ logoutUrl });                                  // возвращаем URL выхода
   }
 }
 
@@ -3633,42 +5652,50 @@ bff/src/auth/decorators/auth.decorator.ts
 -----------------------------------------
 import { SetMetadata, createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { Request } from 'express';
-import type { AuthenticatedSession } from '../../types/session';
+import { Session } from '../../types/session';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
-export const Auth = createParamDecorator(
-  (_: unknown, ctx: ExecutionContext): AuthenticatedSession => {
-    const req = ctx.switchToHttp().getRequest<Request>();
-    return req.session as AuthenticatedSession;
-  },
-);
+export const AuthSession = createParamDecorator((_: unknown, ctx: ExecutionContext): Session => {
+  const req = ctx.switchToHttp().getRequest<Request>();
+  return req.session!;
+});
 
 
 bff/src/auth/guards/auth.guard.ts
 ---------------------------------
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorator';
-import { assertAuthenticated } from '../../shared/utils/assert-authenticated';
+import { SessionService } from '../../session/services/session.service';
+import { config } from '../../config/config';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly sessionService: SessionService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) {
-      return true;
-    }
+    if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest<Request>();
-    assertAuthenticated(req.session);
+    const sessionId = req.cookies?.[config.session.cookieName];
+    if (!sessionId) throw new UnauthorizedException('Not authenticated');
+
+    const session = await this.sessionService.get(sessionId);
+    if (!session) throw new UnauthorizedException('Not authenticated');
+
+    await this.sessionService.touch(sessionId, session.user.id);
+    
+    req.session = session;
     return true;
   }
 }
@@ -3691,79 +5718,118 @@ export class SessionModule {}
 
 bff/src/session/services/session.service.ts
 -------------------------------------------
-import { Injectable } from '@nestjs/common';
-import { requestContext } from '../../shared/request-context';
-import { assertAuthenticated } from '../../shared/utils/assert-authenticated';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { RedisService } from '../../redis/services/redis.service';
-import type { RawSession, AuthenticatedSession } from '../../types/session';
-import { AuthSession, SessionTokens } from '../../types/auth-session.interface';
+import { config } from '../../config/config';
+import { KeycloakJwtPayload, TokenSet } from '../../types/keycloak';
+import type { Session, SessionUser, SessionTokens } from '../../types/session';
 
 @Injectable()
 export class SessionService {
   constructor(private readonly redis: RedisService) {}
 
-  /**
-   * Инициализирует аутентификацию, сохраняет сессию в Redis
-   * и добавляет в пользовательский индекс.
-   */
-  async create(session: RawSession, authSession: AuthSession): Promise<void> {
-    session.auth = authSession;
-    await this.save(session as AuthenticatedSession);
-    await this.redis.addUserSession(authSession.user.id, session.id);
-  }
-
-  /** Возвращает гарантированно аутентифицированную сессию */
-  get(): AuthenticatedSession {
-    const session = requestContext.getStore()?.req.session;
-    assertAuthenticated(session);
+  // Создаем новую сессию пользователя и сохраняем ее в Redis
+  async create(
+    idPayload: KeycloakJwtPayload,
+    tokenSet: TokenSet,
+    userId: string,
+  ): Promise<Session> {
+    const session = this.buildSession(idPayload, tokenSet); // собираем объект сессии
+    await this.saveSession(session);                       // сохраняем в Redis
+    await this.redis.addUserSession(userId, session.id);    // связываем пользователя с сессией
     return session;
   }
 
-  /**
-   * Атомарно обновляет токены, продлевает TTL сессии и пользовательского индекса,
-   * и сохраняет сессию в Redis.
-   */
-  async saveTokens(session: AuthenticatedSession, tokens: SessionTokens): Promise<void> {
-    session.auth.tokens = tokens;
-    await this.save(session);
-    await this.redis.refreshUserSessionTtl(session.auth.user.id);
-    await this.redis.refreshSessionStoreTtl(session.id);
+  // Получаем сессию по ID или возвращаем null
+  async get(id: string): Promise<Session | null> {
+    const raw = await this.redis.client.get(this.sessionKey(id)); // читаем строку из Redis
+    if (!raw) return null;                                      // сессии нет
+    try {
+      return JSON.parse(raw);                                    // парсим JSON
+    } catch {
+      return null;                                               // ошибка парсинга
+    }
   }
 
-  /**
-   * Удаляет сессию и удаляет её из пользовательского индекса.
-   */
-  async destroy(session: AuthenticatedSession): Promise<void> {
-    await this.redis.removeUserSession(session.auth.user.id, session.id);
-    await this.destroySession(session);
+  // Атомарно обновляем токены в сессии через Lua-скрипт для предотвращения race condition
+  async updateTokens(id: string, tokens: SessionTokens): Promise<void> {
+    const key = this.sessionKey(id);
+    const script = `
+      local session = redis.call('get', KEYS[1])
+      if not session then return nil end
+      local data = cjson.decode(session)
+      data.tokens = cjson.decode(ARGV[1])
+      redis.call('set', KEYS[1], cjson.encode(data), 'KEEPTTL')
+      return 1
+    `;
+
+    const result = await this.redis.client.eval(script, {
+      keys: [key],
+      arguments: [JSON.stringify(tokens)]
+    });
+
+    if (!result) throw new UnauthorizedException('Session not found for token update'); // бросаем 401 если сессия пропала
   }
 
-  /**
-   * Удаляет все сессии пользователя (для backchannel logout).
-   */
+  // Продлеваем время жизни сессии в хранилище
+  async touch(sessionId: string, userId: string): Promise<void> {
+    await this.redis.refreshSessionStoreTtl(sessionId); // обновляем TTL самой сессии
+    await this.redis.refreshUserSessionTtl(userId);      // обновляем TTL связи пользователя с сессией
+  }
+
+  // Полностью уничтожаем сессию и связь с пользователем
+  async destroy(id: string, userId: string): Promise<void> {
+    await this.redis.client.del(this.sessionKey(id)); // удаляем данные сессии
+    await this.redis.removeUserSession(userId, id);    // удаляем связь пользователя с сессией
+  }
+
+  // Удаляем все активные сессии пользователя
   async destroyAllSessions(userId: string): Promise<void> {
-    const sessionIds = await this.redis.getUserSessions(userId);
-    if (sessionIds.length === 0) return;
-
-    await this.redis.deleteUserSessions(userId);
+    await this.redis.deleteUserSessions(userId); // очищаем все ключи пользователя
   }
 
-  save(session: AuthenticatedSession): Promise<void> {
-    return new Promise((resolve, reject) => {
-      session.save((err) => (err ? reject(err) : resolve()));
+  // --- Примитивы ---
+
+  private async saveSession(session: Session): Promise<void> {
+    await this.redis.client.set(this.sessionKey(session.id), JSON.stringify(session), {
+      EX: config.session.ttl,
     });
   }
 
-  reload(session: AuthenticatedSession): Promise<void> {
-    return new Promise((resolve, reject) => {
-      session.reload((err) => (err ? reject(err) : resolve()));
-    });
+  private buildSession(idPayload: KeycloakJwtPayload, tokenSet: TokenSet): Session {
+    return {
+      id: randomUUID(),
+      user: this.buildUser(idPayload),
+      tokens: this.buildTokens(tokenSet),
+    };
   }
 
-  private destroySession(session: AuthenticatedSession): Promise<void> {
-    return new Promise((resolve, reject) => {
-      session.destroy((err) => (err ? reject(err) : resolve()));
-    });
+  private buildUser(idPayload: KeycloakJwtPayload): SessionUser {
+    return {
+      id: idPayload.sub,
+      username: idPayload.preferred_username,
+      email: idPayload.email,
+      roles: this.extractRoles(idPayload),
+    };
+  }
+
+  private buildTokens(tokenSet: TokenSet): SessionTokens {
+    return {
+      accessToken: tokenSet.access_token,
+      refreshToken: tokenSet.refresh_token,
+      idToken: tokenSet.id_token,
+    };
+  }
+
+  private extractRoles(idPayload: KeycloakJwtPayload): string[] {
+    const realm = idPayload.realm_access?.roles || [];
+    const client = Object.values(idPayload.resource_access || {}).flatMap((c) => c.roles || []);
+    return [...realm, ...client];
+  }
+
+  private sessionKey(id: string): string {
+    return `${config.session.prefix}${id}`;
   }
 }
 
@@ -3775,7 +5841,7 @@ import { randomUUID } from 'crypto';
 import { RedisService } from '../../redis/services/redis.service';
 
 const LOCK_PREFIX = 'refresh_lock:';
-const LOCK_TTL_SECONDS = 10;
+const LOCK_TTL_SECONDS = 30;
 
 const RELEASE_LUA = `
 if redis.call('get', KEYS[1]) == ARGV[1] then
@@ -3787,616 +5853,63 @@ end
 
 @Injectable()
 export class TokenRefreshLock {
-  private readonly owner = randomUUID();
-
   constructor(private redis: RedisService) {}
 
-  async acquire(sessionId: string): Promise<boolean> {
+  async acquire(sessionId: string): Promise<{ acquired: boolean; owner: string }> {
+    const owner = randomUUID(); // генерируем уникальный ID владельца для каждой попытки
     const key = `${LOCK_PREFIX}${sessionId}`;
-    const result = await this.redis.client.set(key, this.owner, { NX: true, EX: LOCK_TTL_SECONDS });
-    return result === 'OK';
+    const result = await this.redis.client.set(key, owner, { NX: true, EX: LOCK_TTL_SECONDS });
+    return { acquired: result === 'OK', owner };
   }
 
-  async waitAndRetry(sessionId: string, maxWaitMs = 5000, intervalMs = 50): Promise<void> {
+  // Ждем разблокировки с экспоненциальным увеличением интервала (до 1с)
+  async waitAndRetry(sessionId: string, maxWaitMs = 30000): Promise<void> {
     const deadline = Date.now() + maxWaitMs;
+    let intervalMs = 50;
+
     while (Date.now() < deadline) {
       const key = `${LOCK_PREFIX}${sessionId}`;
       const exists = await this.redis.client.exists(key);
       if (!exists) return;
       await new Promise((r) => setTimeout(r, intervalMs));
+      intervalMs = Math.min(intervalMs * 1.5, 1000);
     }
+    throw new Error('Timeout waiting for token refresh lock');
   }
 
-  async release(sessionId: string): Promise<void> {
+  async release(sessionId: string, owner: string): Promise<void> {
     const key = `${LOCK_PREFIX}${sessionId}`;
-    await this.redis.client.eval(RELEASE_LUA, { keys: [key], arguments: [this.owner] });
+    await this.redis.client.eval(RELEASE_LUA, { keys: [key], arguments: [owner] });
   }
 }
 
 
-themes/custom-login/login/login.ftl
------------------------------------
-<#import "template.ftl" as layout>
-<@layout.registrationLayout displayInfo=realm.password && realm.registrationAllowed; section>
-    <#if section = "title">
-        ${msg("loginTitle",(realm.displayName)!"")}
-    <#elseif section = "header">
-        <#if realm.displayName?has_content>
-            <h1>${realm.displayName}</h1>
-        <#else>
-            <h1>${msg("loginTitleHtml",(realm.displayNameHtml)!"")}</h1>
-        </#if>
-    <#elseif section = "form">
-        <div class="login-container">
-            <div class="login-card">
-                <#if realm.logoUri?has_content>
-                    <div class="login-logo">
-                        <img src="${url.resourcesPath}${realm.logoUri}" alt="${realm.displayName!}" />
-                    </div>
-                <#else>
-                    <div class="login-logo login-logo--icon">
-                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="50" cy="50" r="48" fill="none" stroke="#646cff" stroke-width="2"/>
-                            <path d="M50 25 C35 25 25 35 25 45 C25 55 35 60 50 70 C65 60 75 55 75 45 C75 35 65 25 50 25Z" fill="#646cff" opacity="0.15" stroke="#646cff" stroke-width="1.5"/>
-                            <circle cx="50" cy="42" r="8" fill="none" stroke="#646cff" stroke-width="1.5"/>
-                            <path d="M38 62 C38 54 44 50 50 50 C56 50 62 54 62 62" fill="none" stroke="#646cff" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                    </div>
-                </#if>
-
-                <form id="kc-form-login" onsubmit="return true;" action="${url.loginAction}" method="post">
-
-                    <div class="login-field">
-                        <label for="username" class="login-label">
-                            <#if !realm.loginWithEmailAllowed>
-                                ${msg("username")}
-                            <#elseif realm.registrationEmailAsUsername>
-                                ${msg("email")}
-                            <#else>
-                                ${msg("usernameOrEmail")}
-                            </#if>
-                        </label>
-                        <input tabindex="1" id="username"
-                               class="login-input <#if messagesPerField.existsError('username','password')>login-input--error</#if>"
-                               name="username"
-                               value="${(login.username!'')}"
-                               autocomplete="username"
-                               autofocus
-                               type="text"
-                               aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
-                        />
-                        <#if messagesPerField.existsError('username','password')>
-                            <span class="login-field-error">${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</span>
-                        </#if>
-                    </div>
-
-                    <div class="login-field">
-                        <label for="password" class="login-label">${msg("password")}</label>
-                        <div class="login-password-wrapper">
-                            <input tabindex="2" id="password"
-                                   class="login-input <#if messagesPerField.existsError('username','password')>login-input--error</#if>"
-                                   name="password"
-                                   type="password"
-                                   autocomplete="current-password"
-                                   aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
-                            />
-                            <button type="button" class="login-password-toggle" onclick="togglePassword()" aria-label="${msg('showPassword')}">
-                                <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                <svg id="eye-closed" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <#if realm.rememberMe?has_content && realm.rememberMe>
-                        <div class="login-checkbox-row">
-                            <label class="login-checkbox-label">
-                                <input tabindex="3" id="rememberMe" name="rememberMe" type="checkbox" <#if login.rememberMe??>checked</#if>>
-                                <span class="login-checkbox-custom"></span>
-                                ${msg("rememberMe")}
-                            </label>
-                        </div>
-                    </#if>
-
-                    <div class="login-actions">
-                        <input type="hidden" id="kc-login" name="login" value="Log in"/>
-                        <input tabindex="4" class="login-button" name="submit" type="submit" value="${msg("doLogIn")}" aria-label="${msg("doLogIn")}"/>
-                    </div>
-                </form>
-
-                <#if realm.resetPasswordAllowed || realm.registrationAllowed>
-                    <div class="login-footer-links">
-                        <#if realm.resetPasswordAllowed>
-                            <a tabindex="5" href="${url.loginRestartFlowUrl}" class="login-link">${msg("doForgotPassword")}</a>
-                        </#if>
-                        <#if realm.registrationAllowed>
-                            <a tabindex="6" href="${url.registrationUrl}" class="login-link">${msg("doRegister")}</a>
-                        </#if>
-                    </div>
-                </#if>
-            </div>
-        </div>
-
-        <script>
-            function togglePassword() {
-                var input = document.getElementById('password');
-                var eyeOpen = document.getElementById('eye-open');
-                var eyeClosed = document.getElementById('eye-closed');
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    eyeOpen.style.display = 'none';
-                    eyeClosed.style.display = 'block';
-                } else {
-                    input.type = 'password';
-                    eyeOpen.style.display = 'block';
-                    eyeClosed.style.display = 'none';
-                }
-            }
-        </script>
-    <#elseif section = "info">
-        <#if displayInfo>
-            <div id="kc-info">
-                <div id="kc-info-wrapper">
-                    ${msg("loginInfoHtml")}
-                </div>
-            </div>
-        </#if>
-    </#if>
-</@layout.registrationLayout>
+.claude/settings.local.json
+---------------------------
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose exec *)",
+      "Bash(docker compose ps *)",
+      "Bash(docker compose logs *)",
+      "Bash(docker compose restart *)",
+      "Bash(curl *)"
+    ]
+  }
+}
 
 
-themes/custom-login/login/template.ftl
---------------------------------------
-<#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false>
+themes/react-login-app/index.html
+---------------------------------
 <!DOCTYPE html>
-<html lang="${lang}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title!}</title>
-    <#if properties.styles?has_content>
-        <#list properties.styles?split(' ') as style>
-            <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
-        </#list>
-    </#if>
-</head>
-<body>
-    <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-        <#if message.type == 'error'>
-            <div class="login-alert login-alert--error">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'success'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'warning'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#else>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        </#if>
-    </#if>
-
-    <#nested "form">
-
-    <#if displayInfo>
-        <#nested "info">
-    </#if>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
-</#macro>
-
-
-themes/custom-login/login/theme.properties
-------------------------------------------
-parent=base
-import=common/keycloak
-styles= css/login.css
-
-
-themes/custom-login/login/resources/css/login.css
--------------------------------------------------
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: #f8f9fc;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
-.login-container {
-    width: 100%;
-    max-width: 420px;
-    padding: 20px;
-    margin: 0 auto;
-}
-
-.login-card {
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 48px 40px;
-    box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.04),
-        0 4px 12px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-.login-logo {
-    text-align: center;
-    margin-bottom: 32px;
-}
-
-.login-logo img {
-    max-height: 64px;
-    max-width: 200px;
-}
-
-.login-logo--icon {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.login-logo--icon svg {
-    width: 64px;
-    height: 64px;
-}
-
-.login-card h1 {
-    text-align: center;
-    font-size: 22px;
-    font-weight: 600;
-    color: #111827;
-    margin-bottom: 32px;
-    letter-spacing: -0.02em;
-}
-
-/* Alert / Error */
-.login-alert {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    margin-bottom: 24px;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.login-alert--error {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-}
-
-.login-alert--info {
-    background: #eff6ff;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-}
-
-.login-alert__icon {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
-}
-
-.login-alert--error .login-alert__icon {
-    color: #dc2626;
-}
-
-.login-alert--info .login-alert__icon {
-    color: #2563eb;
-}
-
-.login-alert__icon svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-}
-
-/* Form Fields */
-.login-field {
-    margin-bottom: 20px;
-}
-
-.login-label {
-    display: block;
-    font-size: 14px;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 8px;
-}
-
-.login-input {
-    width: 100%;
-    height: 48px;
-    padding: 0 16px;
-    font-size: 15px;
-    font-family: inherit;
-    color: #111827;
-    background: #f9fafb;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 10px;
-    outline: none;
-    transition: all 0.2s ease;
-}
-
-.login-input::placeholder {
-    color: #9ca3af;
-}
-
-.login-input:focus {
-    border-color: #646cff;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.12);
-}
-
-.login-input--error {
-    border-color: #fca5a5;
-    background: #fff5f5;
-}
-
-.login-input--error:focus {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-}
-
-/* Password */
-.login-password-wrapper {
-    position: relative;
-}
-
-.login-password-wrapper .login-input {
-    padding-right: 48px;
-}
-
-.login-password-toggle {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #9ca3af;
-    border-radius: 8px;
-    transition: all 0.15s ease;
-}
-
-.login-password-toggle:hover {
-    color: #646cff;
-    background: rgba(100, 108, 255, 0.06);
-}
-
-.login-password-toggle svg {
-    width: 20px;
-    height: 20px;
-}
-
-/* Remember Me */
-.login-checkbox-row {
-    margin-bottom: 24px;
-}
-
-.login-checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #4b5563;
-    user-select: none;
-}
-
-.login-checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    border-radius: 5px;
-    border: 1.5px solid #d1d5db;
-    background: #f9fafb;
-    cursor: pointer;
-    accent-color: #646cff;
-    transition: all 0.15s ease;
-}
-
-.login-checkbox-label input[type="checkbox"]:checked {
-    background: #646cff;
-    border-color: #646cff;
-}
-
-/* Submit Button */
-.login-actions {
-    margin-top: 8px;
-}
-
-.login-button {
-    width: 100%;
-    height: 48px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: inherit;
-    color: #ffffff;
-    background: #646cff;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    letter-spacing: 0.01em;
-}
-
-.login-button:hover {
-    background: #535bf2;
-    box-shadow: 0 4px 12px rgba(100, 108, 255, 0.35);
-    transform: translateY(-1px);
-}
-
-.login-button:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(100, 108, 255, 0.25);
-}
-
-.login-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.3);
-}
-
-/* Social Providers */
-.login-divider {
-    display: flex;
-    align-items: center;
-    margin: 28px 0;
-    gap: 16px;
-}
-
-.login-divider::before,
-.login-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #e5e7eb;
-}
-
-.login-divider span {
-    font-size: 13px;
-    color: #9ca3af;
-    white-space: nowrap;
-}
-
-.login-social {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: center;
-}
-
-.login-social-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 44px;
-    padding: 0 20px;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 10px;
-    background: #ffffff;
-    color: #374151;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.login-social-button:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.login-social-button img {
-    height: 20px;
-    margin-right: 8px;
-}
-
-/* Footer Links */
-.login-footer-links {
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    margin-top: 28px;
-    padding-top: 24px;
-    border-top: 1px solid #f3f4f6;
-}
-
-.login-link {
-    font-size: 14px;
-    font-weight: 500;
-    color: #646cff;
-    text-decoration: none;
-    transition: color 0.15s ease;
-}
-
-.login-link:hover {
-    color: #535bf2;
-    text-decoration: underline;
-}
-
-.login-powered {
-    text-align: center;
-    margin-top: 24px;
-    font-size: 12px;
-    color: #9ca3af;
-}
-
-.login-powered a {
-    color: #646cff;
-    text-decoration: none;
-}
-
-.login-powered a:hover {
-    text-decoration: underline;
-}
-
-/* Responsive */
-@media (max-width: 480px) {
-    .login-card {
-        padding: 36px 24px;
-        border-radius: 12px;
-    }
-
-    .login-container {
-        padding: 12px;
-    }
-}
-
-/* Focus visible for accessibility */
-*:focus-visible {
-    outline: 2px solid #646cff;
-    outline-offset: 2px;
-}
-
-.login-input:focus-visible,
-.login-button:focus-visible {
-    outline: none;
-}
-
-/* Keycloak base overrides */
-#kc-content {
-    width: 100%;
-}
-
-#kc-form {
-    width: 100%;
-}
-
-#kc-form-login {
-    width: 100%;
-}
-
-#kc-info {
-    margin-top: 0;
-}
-
-
