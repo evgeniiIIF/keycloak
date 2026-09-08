@@ -11,11 +11,11 @@ export class SessionService {
 
   // Создаем новую сессию пользователя и сохраняем ее в Redis
   async create(
-    idPayload: KeycloakJwtPayload,
+    idTokenPayload: KeycloakJwtPayload,
     tokenSet: TokenSet,
     userId: string,
   ): Promise<Session> {
-    const session = this.buildSession(idPayload, tokenSet); // собираем объект сессии
+    const session = this.buildSession(idTokenPayload, tokenSet); // собираем объект сессии
     await this.saveSession(session);                       // сохраняем в Redis
     await this.redis.addUserSession(userId, session.id);    // связываем пользователя с сессией
     return session;
@@ -77,20 +77,20 @@ export class SessionService {
     });
   }
 
-  private buildSession(idPayload: KeycloakJwtPayload, tokenSet: TokenSet): Session {
+  private buildSession(idTokenPayload: KeycloakJwtPayload, tokenSet: TokenSet): Session {
     return {
       id: randomUUID(),
-      user: this.buildUser(idPayload),
+      user: this.buildUser(idTokenPayload),
       tokens: this.buildTokens(tokenSet),
     };
   }
 
-  private buildUser(idPayload: KeycloakJwtPayload): SessionUser {
+  private buildUser(idTokenPayload: KeycloakJwtPayload): SessionUser {
     return {
-      id: idPayload.sub,
-      username: idPayload.preferred_username,
-      email: idPayload.email,
-      roles: this.extractRoles(idPayload),
+      id: idTokenPayload.sub,
+      username: idTokenPayload.preferred_username,
+      email: idTokenPayload.email,
+      roles: this.extractRoles(idTokenPayload),
     };
   }
 
@@ -102,9 +102,9 @@ export class SessionService {
     };
   }
 
-  private extractRoles(idPayload: KeycloakJwtPayload): string[] {
-    const realm = idPayload.realm_access?.roles || [];
-    const client = Object.values(idPayload.resource_access || {}).flatMap((c) => c.roles || []);
+  private extractRoles(idTokenPayload: KeycloakJwtPayload): string[] {
+    const realm = idTokenPayload.realm_access?.roles || [];
+    const client = Object.values(idTokenPayload.resource_access || {}).flatMap((c) => c.roles || []);
     return [...realm, ...client];
   }
 

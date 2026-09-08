@@ -45,9 +45,9 @@ export class AuthService {
     }
 
     const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier); // обмениваем код на токены
-    const idPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);     // парсим ID токен
+    const idTokenPayload = decodeJwt<KeycloakJwtPayload>(tokenSet.id_token);     // парсим ID токен
 
-    const session = await this.sessionService.create(idPayload, tokenSet, idPayload.sub); // создаем сессию
+    const session = await this.sessionService.create(idTokenPayload, tokenSet, idTokenPayload.sub); // создаем сессию
     await this.redis.deleteOAuthState(state); // удаляем state после использования
 
     Logger.info('Auth', 'Login complete', {

@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import * as crypto from 'crypto';
 import { RedisService } from '../../../redis/services/redis.service';
 import { SessionService } from '../../../session/services/session.service';
 import { AuthService } from '../auth.service';
 import { KeycloakClient } from '../keycloak.service';
-import { validTokenSet, refreshedTokenSet, idPayload, initFixtures } from '../../../../test/fixtures/tokens.fixture';
+import { validTokenSet, refreshedTokenSet, idTokenPayload, initFixtures } from '../../../test/fixtures/tokens.fixture';
 
 // Мокаем KeycloakClient — в этом тесте проверяем логику AuthService,
 // а не реальное взаимодействие с Keycloak
@@ -80,7 +81,6 @@ describe('AuthService with Redis / AuthService с Redis', () => {
       expect(verifier).toBeTruthy();
 
       // Проверяем соответствие code_challenge и verifier (S256)
-      const crypto = require('crypto');
       const expectedChallenge = crypto.createHash('sha256').update(verifier!).digest('base64url');
       expect(codeChallenge).toBe(expectedChallenge);
     });
@@ -106,7 +106,7 @@ describe('AuthService with Redis / AuthService с Redis', () => {
       // Проверяем, что сессия создана и содержит правильные данные
       const session = await sessionService.get(sessionId);
       expect(session).toBeDefined();
-      expect(session!.user.id).toBe(idPayload.sub);
+      expect(session!.user.id).toBe(idTokenPayload.sub);
       expect(session!.tokens.accessToken).toBe(validTokenSet.access_token);
 
       // Убеждаемся, что KeycloakClient.exchangeCode вызван с правильным verifier
@@ -122,7 +122,7 @@ describe('AuthService with Redis / AuthService с Redis', () => {
   describe('refreshTokens / Обновление токенов', () => {
     it('updates tokens in session and saves them to Redis / обновляет токены в сессии и сохраняет их в Redis', async () => {
       // Создаём сессию в Redis
-      const session = await sessionService.create(idPayload, validTokenSet, idPayload.sub);
+      const session = await sessionService.create(idTokenPayload, validTokenSet, idTokenPayload.sub);
       // Мок KeycloakClient.refreshTokens возвращает новые токены
       keycloakClientMock.refreshTokens.mockResolvedValue(refreshedTokenSet);
 
@@ -142,7 +142,7 @@ describe('AuthService with Redis / AuthService с Redis', () => {
   describe('logout / Выход из системы', () => {
     it('deletes session, revokes refresh token, and returns Keycloak logout URL / удаляет сессию, отзывает refresh token и возвращает URL выхода из Keycloak', async () => {
       // Создаём сессию
-      const session = await sessionService.create(idPayload, validTokenSet, idPayload.sub);
+      const session = await sessionService.create(idTokenPayload, validTokenSet, idTokenPayload.sub);
       // Мок revokeRefreshToken успешен
       keycloakClientMock.revokeRefreshToken.mockResolvedValue(undefined);
 

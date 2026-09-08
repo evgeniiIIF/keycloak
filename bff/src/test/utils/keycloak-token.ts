@@ -1,10 +1,9 @@
 import axios from 'axios';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
 
-// Загружаем .env из корня bff/
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-
+/**
+ * Получает access/refresh/id токены от Keycloak через password grant.
+ * Использует переменные окружения, установленные в global-setup.
+ */
 export async function getTokenViaPasswordGrant(
   username: string,
   password: string,
@@ -17,10 +16,12 @@ export async function getTokenViaPasswordGrant(
     password,
     scope: 'openid',
   });
+
   const response = await axios.post(
     `${process.env.KEYCLOAK_PUBLIC_ISSUER}/protocol/openid-connect/token`,
     params,
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
   );
+
   return response.data;
 }

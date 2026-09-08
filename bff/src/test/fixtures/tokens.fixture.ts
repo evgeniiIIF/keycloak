@@ -1,5 +1,5 @@
 import { SignJWT } from 'jose';
-import { TokenSet, KeycloakJwtPayload } from '../../src/types/keycloak';
+import { TokenSet, KeycloakJwtPayload } from '../../types/keycloak';
 
 const secret = new TextEncoder().encode('test-secret-key-for-jwt-signing');
 
@@ -32,7 +32,7 @@ export const refreshedTokenSet: TokenSet = {
   id_token: 'new-id-token',
 };
 
-export const idPayload: KeycloakJwtPayload = {
+export const idTokenPayload: KeycloakJwtPayload = {
   sub: '6a1e0d1a-2461-403f-bd11-d79c7efb3ebd',
   email: 'test@example.com',
   preferred_username: 'testuser',

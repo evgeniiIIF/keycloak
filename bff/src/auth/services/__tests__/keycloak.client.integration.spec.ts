@@ -1,5 +1,5 @@
 import { KeycloakClient } from '../keycloak.service';
-import { getTokenViaPasswordGrant } from '../../../../test/utils/keycloak-token';
+import { getTokenViaPasswordGrant } from '../../../test/utils/keycloak-token';
 
 describe('KeycloakClient with real Keycloak / KeycloakClient с реальным Keycloak', () => {
   let keycloakClient: KeycloakClient;

@@ -1,5 +1,5 @@
-import { TokenSet, KeycloakJwtPayload } from '../../src/types/keycloak';
+import { TokenSet, KeycloakJwtPayload } from '../../types/keycloak';
 export declare const validTokenSet: TokenSet;
 export declare const refreshedTokenSet: TokenSet;
-export declare const idPayload: KeycloakJwtPayload;
+export declare const idTokenPayload: KeycloakJwtPayload;
 export declare function initFixtures(): Promise<void>;

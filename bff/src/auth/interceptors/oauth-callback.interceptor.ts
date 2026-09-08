@@ -7,7 +7,7 @@ import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()
 export class OAuthCallbackInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
     const query = req.query as unknown as OAuthCallbackDto;

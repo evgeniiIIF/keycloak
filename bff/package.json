@@ -13,8 +13,8 @@
     "test:cov": "jest --coverage",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "test:unit": "jest --config test/jest.config.js",
-    "test:integration": "jest --config test/jest.integration.config.js --runInBand --verbose"
+    "test:unit": "jest --config src/test/jest.config.js --runInBand --verbose",
+    "test:integration": "jest --config src/test/jest.integration.config.js --runInBand --verbose"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
