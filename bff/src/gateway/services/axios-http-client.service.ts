@@ -1,10 +1,11 @@
-import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosError,AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Request } from 'express';
+
 import { AuthService } from '../../auth/services/auth.service';
-import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
 import { SessionService } from '../../session/services/session.service';
+import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
 import { Logger } from '../../shared/logger/logger';
 import { isKeycloakErrorBody } from '../../shared/utils/is-keycloak-error-body';
 import { Session } from '../../types/session';

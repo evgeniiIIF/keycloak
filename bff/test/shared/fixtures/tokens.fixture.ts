@@ -1,5 +1,6 @@
 import { SignJWT } from 'jose';
-import { TokenSet, KeycloakJwtPayload } from '../../types/keycloak';
+
+import { KeycloakJwtPayload,TokenSet } from '@/types/keycloak';
 
 const secret = new TextEncoder().encode('test-secret-key-for-jwt-signing');
 

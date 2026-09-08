@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BackchannelService } from '../backchannel.service';
-import { JwksService } from '../jwks.service';
-import { RedisService } from '../../../redis/services/redis.service';
-import { SessionService } from '../../../session/services/session.service';
+
+import { BackchannelService } from '@/auth/services/backchannel.service';
+import { JwksService } from '@/auth/services/jwks.service';
+import { RedisService } from '@/redis/services/redis.service';
+import { SessionService } from '@/session/services/session.service';
 
 describe('BackchannelService (integration)', () => {
   let backchannelService: BackchannelService;

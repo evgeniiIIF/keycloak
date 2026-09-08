@@ -1,12 +1,13 @@
 import { Controller, Get, Post, Query, Res, UseInterceptors } from '@nestjs/common';
 import { Response } from 'express';
-import { AuthService } from '../services/auth.service';
-import { Public, AuthSession } from '../decorators/auth.decorator';
-import { OAuthCallbackInterceptor } from '../interceptors/oauth-callback.interceptor';
-import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
+
 import { config } from '../../config/config';
 import { Logger } from '../../shared/logger/logger';
 import { Session } from '../../types/session';
+import { AuthSession,Public } from '../decorators/auth.decorator';
+import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
+import { OAuthCallbackInterceptor } from '../interceptors/oauth-callback.interceptor';
+import { AuthService } from '../services/auth.service';
 
 @Controller()
 export class AuthController {

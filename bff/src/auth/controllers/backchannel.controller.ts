@@ -1,7 +1,8 @@
-import { Controller, Post, Header, Body } from '@nestjs/common';
+import { Body,Controller, Header, Post } from '@nestjs/common';
+
 import { Public } from '../decorators/auth.decorator';
-import { BackchannelService } from '../services/backchannel.service';
 import { BackchannelLogoutDto } from '../dto/backchannel-logout.dto';
+import { BackchannelService } from '../services/backchannel.service';
 
 @Public()
 @Controller()

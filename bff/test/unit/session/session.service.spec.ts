@@ -1,8 +1,9 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
-import { SessionService } from '../session.service';
-import { RedisService } from '../../../redis/services/redis.service';
-import { KeycloakJwtPayload, TokenSet } from '../../../types/keycloak';
+import { Test, TestingModule } from '@nestjs/testing';
+
+import { RedisService } from '@/redis/services/redis.service';
+import { SessionService } from '@/session/services/session.service';
+import { KeycloakJwtPayload, TokenSet } from '@/types/keycloak';
 
 describe('SessionService (unit)', () => {
   let sessionService: SessionService;

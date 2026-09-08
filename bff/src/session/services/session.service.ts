@@ -1,9 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { RedisService } from '../../redis/services/redis.service';
+
 import { config } from '../../config/config';
+import { RedisService } from '../../redis/services/redis.service';
 import { KeycloakJwtPayload, TokenSet } from '../../types/keycloak';
-import type { Session, SessionUser, SessionTokens } from '../../types/session';
+import type { Session, SessionTokens,SessionUser } from '../../types/session';
 
 @Injectable()
 export class SessionService {

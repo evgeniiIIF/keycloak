@@ -1,5 +1,5 @@
-import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import path from 'path';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
 export async function startKeycloakContainer(): Promise<StartedTestContainer> {
   const realmFilePath = path.resolve(__dirname, '../fixtures/realm-test.json');

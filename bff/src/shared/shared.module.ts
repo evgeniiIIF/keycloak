@@ -1,4 +1,5 @@
-import { Module, Global } from '@nestjs/common';
+import { Global,Module } from '@nestjs/common';
+
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 
 @Global()

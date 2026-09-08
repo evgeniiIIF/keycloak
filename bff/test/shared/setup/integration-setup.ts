@@ -1,5 +1,5 @@
-import { startRedisContainer } from '../containers/redis-container';
 import { startKeycloakContainer } from '../containers/keycloak-container';
+import { startRedisContainer } from '../containers/redis-container';
 import { setTestEnv } from './env';
 
 /**

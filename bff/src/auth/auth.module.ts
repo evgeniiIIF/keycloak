@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AuthController } from './controllers/auth.controller';
-import { BackchannelController } from './controllers/backchannel.controller';
-import { AuthService } from './services/auth.service';
-import { KeycloakClient } from './services/keycloak.service';
-import { JwksService } from './services/jwks.service';
-import { BackchannelService } from './services/backchannel.service';
-import { OAuthCallbackInterceptor } from './interceptors/oauth-callback.interceptor';
+
 import { RedisModule } from '../redis/redis.module';
 import { SessionModule } from '../session/session.module';
+import { AuthController } from './controllers/auth.controller';
+import { BackchannelController } from './controllers/backchannel.controller';
+import { OAuthCallbackInterceptor } from './interceptors/oauth-callback.interceptor';
+import { AuthService } from './services/auth.service';
+import { BackchannelService } from './services/backchannel.service';
+import { JwksService } from './services/jwks.service';
+import { KeycloakClient } from './services/keycloak.service';
 
 @Module({
   imports: [RedisModule, SessionModule],

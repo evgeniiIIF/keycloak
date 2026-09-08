@@ -1,6 +1,7 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable, EMPTY } from 'rxjs';
+import { CallHandler,ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { EMPTY,Observable } from 'rxjs';
+
 import { config } from '../../config/config';
 import { Logger } from '../../shared/logger/logger';
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';

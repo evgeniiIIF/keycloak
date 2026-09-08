@@ -1,9 +1,7 @@
 import { Session } from './session';
 
-declare global {
-  namespace Express {
-    interface Request {
-      session?: Session;
-    }
+declare module 'express' {
+  interface Request {
+    session?: Session;
   }
 }

@@ -1,15 +1,16 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { decodeJwt } from 'jose';
+import { BadRequestException,Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Response } from 'express';
+import { decodeJwt } from 'jose';
+
 import { config } from '../../config/config';
 import { RedisService } from '../../redis/services/redis.service';
 import { SessionService } from '../../session/services/session.service';
-import { KeycloakClient } from './keycloak.service';
 import { Logger } from '../../shared/logger/logger';
 import { errorMessage } from '../../shared/utils/utils';
 import { KeycloakJwtPayload } from '../../types/keycloak';
 import type { Session, SessionTokens } from '../../types/session';
+import { KeycloakClient } from './keycloak.service';
 
 @Injectable()
 export class AuthService {

@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Patch, Req, Param, BadRequestException } from '@nestjs/common';
+import { BadRequestException,Controller, Delete, Get, Param, Patch, Post, Put, Req } from '@nestjs/common';
 import { Request } from 'express';
-import { HttpClient } from '../services/http-client.service';
+
 import { config } from '../../config/config';
+import { HttpClient } from '../services/http-client.service';
 
 @Controller('api/service')
 export class GatewayController {

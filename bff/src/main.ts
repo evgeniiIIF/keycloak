@@ -1,12 +1,13 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import express from 'express';
+import helmet from 'helmet';
+
 import { AppModule } from './app.module';
 import { config } from './config/config';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
 import { Logger } from './shared/logger/logger';
-import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
-import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

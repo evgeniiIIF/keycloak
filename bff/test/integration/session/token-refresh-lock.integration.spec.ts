@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TokenRefreshLock } from '../token-refresh-lock.service';
-import { RedisService } from '../../../redis/services/redis.service';
+
+import { RedisService } from '@/redis/services/redis.service';
+import { TokenRefreshLock } from '@/session/services/token-refresh-lock.service';
 
 describe('TokenRefreshLock — блокировка при обновлении токена (integration)', () => {
   let tokenRefreshLock: TokenRefreshLock;

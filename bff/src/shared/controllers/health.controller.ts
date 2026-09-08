@@ -1,7 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
-import { HealthCheck, HealthCheckService, HealthCheckResult, HealthIndicatorResult } from '@nestjs/terminus';
-import { RedisService } from '../../redis/services/redis.service';
+import { HealthCheck, HealthCheckResult, HealthCheckService, HealthIndicatorResult } from '@nestjs/terminus';
+
 import { Public } from '../../auth/decorators/auth.decorator';
+import { RedisService } from '../../redis/services/redis.service';
 
 @Public()
 @Controller('health')

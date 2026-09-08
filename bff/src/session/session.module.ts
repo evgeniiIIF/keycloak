@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
+
+import { RedisModule } from '../redis/redis.module';
 import { SessionService } from './services/session.service';
 import { TokenRefreshLock } from './services/token-refresh-lock.service';
-import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [RedisModule],
