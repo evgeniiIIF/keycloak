@@ -7,7 +7,7 @@ import simpleImportSort from 'eslint-plugin-simple-import-sort';
 export default config(
   ...configs.recommended,
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts'],
     plugins: {
       import: importPlugin,
       'unused-imports': unusedImports,

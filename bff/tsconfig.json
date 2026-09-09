@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"],
   "compilerOptions": {
     "module": "commonjs",
@@ -17,7 +17,7 @@
     "strict": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@test/*": ["./test/*"],
+      "@tests/*": ["./tests/*"],
       "@controllers/*": ["./src/controllers/*"],
       "@routes/*": ["./src/routes/*"],
       "@configs/*": ["./src/configs/*"],

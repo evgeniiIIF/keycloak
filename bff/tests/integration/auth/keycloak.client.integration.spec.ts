@@ -1,4 +1,4 @@
-import { getTokenViaPasswordGrant } from "@test/shared/utils/keycloak-token";
+import { getTokenViaPasswordGrant } from "@tests/shared/utils/keycloak-token";
 
 import { KeycloakClient } from "@/auth/services/keycloak.service";
 

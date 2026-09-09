@@ -11,10 +11,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "format": "prettier --write \"{src,test}/**/*.ts\"",
-    "test:unit": "jest --config test/jest.config.js --runInBand --verbose",
-    "test:integration": "jest --config test/jest.integration.config.js --runInBand --verbose"
+    "lint": "eslint \"{src,tests}/**/*.ts\" --fix",
+    "format": "prettier --write \"{src,tests}/**/*.ts\"",
+    "test:unit": "jest --config tests/jest.config.js --runInBand --verbose",
+    "test:integration": "jest --config tests/jest.integration.config.js --runInBand --verbose"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -36,10 +36,12 @@
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.4.22",
+    "@playwright/test": "^1.63.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",

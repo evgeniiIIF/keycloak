@@ -2,7 +2,7 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '..',
-  testRegex: 'test/e2e/.*\\.e2e\\.spec\\.ts$',
+  testRegex: 'tests/e2e/.*\\.e2e\\.spec\\.ts$',
   transform: {
     '^.+\\.ts$': ['ts-jest', {
       tsconfig: '<rootDir>/tsconfig.spec.json',

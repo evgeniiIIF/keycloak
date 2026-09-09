@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { initFixtures, validTokenSet } from '@test/shared/fixtures/tokens.fixture';
+import { initFixtures, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 
 import { AuthService } from '@/auth/services/auth.service';
 import { KeycloakClient } from '@/auth/services/keycloak.service';
