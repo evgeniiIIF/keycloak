@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder,SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
@@ -12,6 +13,16 @@ import { Logger } from './shared/logger/logger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const configBuilder = new DocumentBuilder()
+    .setTitle('Keycloak BFF API')
+    .setDescription('API документация для BFF сервиса')
+    .setVersion('1.0')
+    .addCookieAuth('connect.sid');
+
+  const document = SwaggerModule.createDocument(app, configBuilder.build());
+  SwaggerModule.setup('api/docs', app, document);
+  Logger.info('App', `Swagger UI on http://localhost:${config.port}/api/docs`);
+  
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
