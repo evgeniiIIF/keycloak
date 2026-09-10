@@ -7,7 +7,7 @@ import { AuthService } from '../../auth/services/auth.service';
 import { SessionService } from '../../session/services/session.service';
 import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
 import { Logger } from '../../shared/logger/logger';
-import { isKeycloakErrorBody } from '../../shared/utils/is-keycloak-error-body';
+import { KeycloakErrorBody } from '../../types/keycloak';
 import { Session } from '../../types/session';
 
 // Расширяем стандартный конфиг Axios для поддержки флага ретрая
@@ -128,10 +128,27 @@ export class AxiosHttpClient {
     }
   }
 
+  // Проверяем, что ошибка — invalid_grant от Keycloak
   private isInvalidGrant(error: unknown): boolean {
-    if (!(error instanceof AxiosError)) return false;
-    if (error.response?.status !== 400) return false;
-    const { data } = error.response;
-    return isKeycloakErrorBody(data) && data.error === 'invalid_grant';
+    if (!this.isAxiosBadRequest(error)) return false;         // 400 от Axios
+    return this.hasInvalidGrantBody(error);                    // тело содержит invalid_grant
+  }
+
+  // Проверяем, что тело ответа содержит error: 'invalid_grant'
+  private hasInvalidGrantBody(error: AxiosError): boolean {
+    const data = error.response!.data;                         // достаём тело
+    return this.isKeycloakErrorBody(data) && data.error === 'invalid_grant';
+  }
+
+  // Проверяем, что это 400 от Axios
+  private isAxiosBadRequest(error: unknown): error is AxiosError {
+    return error instanceof AxiosError && error.response?.status === 400;
+  }
+
+  // Проверяем, что тело — Keycloak error body
+  private isKeycloakErrorBody(data: unknown): data is KeycloakErrorBody {
+    if (typeof data !== 'object' || data === null) return false;
+    const record = data as Record<string, unknown>;
+    return typeof record.error === 'string';
   }
 }

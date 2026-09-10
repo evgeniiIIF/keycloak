@@ -79,9 +79,9 @@ describe('AuthService (unit)', () => {
       keycloakClientMock.exchangeCode.mockResolvedValue(validTokenSet);
       sessionServiceMock.create.mockResolvedValue(session);
 
-      const sessionId = await authService.exchangeCode('code-123', 'state-123');
+      const result = await authService.exchangeCode('code-123', 'state-123');
 
-      expect(sessionId).toBe('session-123');
+      expect(result).toBe(session);
       expect(redisServiceMock.getOAuthState).toHaveBeenCalledWith('state-123');
       expect(keycloakClientMock.exchangeCode).toHaveBeenCalledWith('code-123', 'verifier-123');
       expect(sessionServiceMock.create).toHaveBeenCalled();
