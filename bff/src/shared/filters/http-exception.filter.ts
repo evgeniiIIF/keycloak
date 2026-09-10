@@ -39,6 +39,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error: exception instanceof Error ? exception.message : String(exception),
     });
 
+    if (res.headersSent) {
+      return;
+    }
+
     res.status(status).json({
       statusCode: status,
       message,

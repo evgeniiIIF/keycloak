@@ -32,17 +32,22 @@ export class BackchannelService {
   }
 
   private async verifyLogoutToken(logoutToken: string): Promise<BackchannelLogoutPayload> {
-    const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
-      issuer: config.keycloak.publicIssuer,
-      audience: config.keycloak.clientId,
-    });
+    try {
+      const { payload } = await jwtVerify(logoutToken, this.jwksService.getJWKS(), {
+        issuer: config.keycloak.publicIssuer,
+        audience: config.keycloak.clientId,
+      });
 
-    const logoutPayload = payload as BackchannelLogoutPayload;
-    if (!logoutPayload.events?.['http://schemas.openid.net/event/backchannel-logout']) {
-      throw new UnauthorizedException('Missing backchannel-logout event');
+      const logoutPayload = payload as BackchannelLogoutPayload;
+      if (!logoutPayload.events?.['http://schemas.openid.net/event/backchannel-logout']) {
+        throw new UnauthorizedException('Missing backchannel-logout event');
+      }
+
+      return logoutPayload;
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException('Invalid logout token');
     }
-
-    return logoutPayload;
   }
 
   private async checkReplay(jti: string | undefined): Promise<void> {
