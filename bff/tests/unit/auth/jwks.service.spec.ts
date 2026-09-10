@@ -1,6 +1,6 @@
 import { createRemoteJWKSet } from 'jose';
 
-import { JwksService } from '@/auth/services/jwks.service';
+import { JwksService } from '@/modules/auth/services/jwks.service';
 
 // Мокаем jose
 jest.mock('jose', () => ({

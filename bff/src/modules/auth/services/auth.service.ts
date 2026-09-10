@@ -3,13 +3,14 @@ import * as crypto from 'crypto';
 import { Response } from 'express';
 import { decodeJwt } from 'jose';
 
-import { config } from '../../config/config';
-import { RedisService } from '../../redis/services/redis.service';
-import { SessionService } from '../../session/services/session.service';
-import { Logger } from '../../shared/logger/logger';
-import { errorMessage } from '../../shared/utils/utils';
-import { KeycloakJwtPayload } from '../../types/keycloak';
-import type { Session, SessionTokens } from '../../types/session';
+import { config } from '@/config/config';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { KeycloakJwtPayload } from '@/modules/auth/types/keycloak';
+import type { Session, SessionTokens } from '@/modules/auth/types/session';
+import { Logger } from '@/shared/logger/logger';
+import { errorMessage } from '@/shared/utils/utils';
+
 import { KeycloakClient } from './keycloak.service';
 
 @Injectable()

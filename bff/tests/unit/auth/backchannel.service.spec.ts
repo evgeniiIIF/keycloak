@@ -1,10 +1,10 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { BackchannelService } from '@/auth/services/backchannel.service';
-import { JwksService } from '@/auth/services/jwks.service';
-import { RedisService } from '@/redis/services/redis.service';
-import { SessionService } from '@/session/services/session.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { BackchannelService } from '@/modules/auth/services/backchannel.service';
+import { JwksService } from '@/modules/auth/services/jwks.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
 
 interface MockPayload {
   sub?: string;

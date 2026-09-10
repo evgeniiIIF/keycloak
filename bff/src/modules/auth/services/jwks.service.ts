@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createRemoteJWKSet } from 'jose';
 
-import { config } from '../../config/config';
+import { config } from '@/config/config';
 
 @Injectable()
 export class JwksService {

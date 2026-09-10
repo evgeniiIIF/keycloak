@@ -6,8 +6,8 @@ import {
   HealthCheckService,
 } from '@nestjs/terminus';
 
-import { Public } from '../../auth/decorators/auth.decorator';
-import { RedisService } from '../../redis/services/redis.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { Public } from '@/modules/auth/decorators/auth.decorator';
 
 @ApiTags('health')
 @Public()

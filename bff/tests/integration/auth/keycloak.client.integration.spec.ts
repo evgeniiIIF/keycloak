@@ -1,6 +1,6 @@
 import { getTokenViaPasswordGrant } from "@tests/shared/utils/keycloak-token";
 
-import { KeycloakClient } from "@/auth/services/keycloak.service";
+import { KeycloakClient } from "@/modules/auth/services/keycloak.service";
 
 
 describe('KeycloakClient with real Keycloak / KeycloakClient с реальным Keycloak', () => {

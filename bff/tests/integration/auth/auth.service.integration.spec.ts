@@ -2,14 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { idTokenPayload, initFixtures, refreshedTokenSet, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 import * as crypto from 'crypto';
 
-import { AuthService } from '@/auth/services/auth.service';
-import { KeycloakClient } from '@/auth/services/keycloak.service';
-import { RedisService } from '@/redis/services/redis.service';
-import { SessionService } from '@/session/services/session.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { AuthService } from '@/modules/auth/services/auth.service';
+import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
 
 // Мокаем KeycloakClient — в этом тесте проверяем логику AuthService,
 // а не реальное взаимодействие с Keycloak
-jest.mock('@/auth/services/keycloak.service');
+jest.mock('@/modules/auth/services/keycloak.service');
 
 describe('AuthService with Redis / AuthService с Redis', () => {
   let redisService: RedisService;

@@ -2,9 +2,10 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { config } from '../../config/config';
-import { SessionService } from '../../session/services/session.service';
-import { Session } from '../../types/session';
+import { config } from '@/config/config';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { Session } from '@/modules/auth/types/session';
+
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorator';
 import { AuthService } from '../services/auth.service';
 

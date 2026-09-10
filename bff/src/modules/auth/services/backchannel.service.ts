@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JWTPayload,jwtVerify } from 'jose';
 
-import { config } from '../../config/config';
-import { RedisKeys } from '../../redis/constants/redis-key-prefixes';
-import { RedisService } from '../../redis/services/redis.service';
-import { SessionService } from '../../session/services/session.service';
-import { Logger } from '../../shared/logger/logger';
+import { config } from '@/config/config';
+import { RedisKeys } from '@/infra/redis/constants/redis-key-prefixes';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { Logger } from '@/shared/logger/logger';
+
 import { JwksService } from './jwks.service';
 
 // Явный интерфейс для Payload события Backchannel Logout

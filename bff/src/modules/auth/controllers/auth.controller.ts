@@ -2,9 +2,10 @@ import { Controller, Get, Post, Query, Res, UseInterceptors } from '@nestjs/comm
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { config } from '../../config/config';
-import { Logger } from '../../shared/logger/logger';
-import { Session } from '../../types/session';
+import { config } from '@/config/config';
+import { Session } from '@/modules/auth/types/session';
+import { Logger } from '@/shared/logger/logger';
+
 import { AuthSession, Public } from '../decorators/auth.decorator';
 import { LogoutResponseDto, MeResponseDto } from '../dto/auth-responses.dto';
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';

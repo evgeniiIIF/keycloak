@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 
-import { RedisModule } from '../redis/redis.module';
-import { SessionModule } from '../session/session.module';
+import { RedisModule } from '@/infra/redis/redis.module';
+import { SessionModule } from '@/modules/auth/sessions/session.module';
+
 import { AuthController } from './controllers/auth.controller';
 import { BackchannelController } from './controllers/backchannel.controller';
 import { OAuthCallbackInterceptor } from './interceptors/oauth-callback.interceptor';

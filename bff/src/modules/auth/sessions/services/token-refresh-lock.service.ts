@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 
-import { RedisService } from '../../redis/services/redis.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
 
 const LOCK_PREFIX = 'refresh_lock:';
 const LOCK_TTL_SECONDS = 30;

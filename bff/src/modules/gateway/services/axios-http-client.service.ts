@@ -3,12 +3,12 @@ import { REQUEST } from '@nestjs/core';
 import axios, { AxiosError,AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Request } from 'express';
 
-import { AuthService } from '../../auth/services/auth.service';
-import { SessionService } from '../../session/services/session.service';
-import { TokenRefreshLock } from '../../session/services/token-refresh-lock.service';
-import { Logger } from '../../shared/logger/logger';
-import { KeycloakErrorBody } from '../../types/keycloak';
-import { Session } from '../../types/session';
+import { AuthService } from '@/modules/auth/services/auth.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { TokenRefreshLock } from '@/modules/auth/sessions/services/token-refresh-lock.service';
+import { KeycloakErrorBody } from '@/modules/auth/types/keycloak';
+import { Session } from '@/modules/auth/types/session';
+import { Logger } from '@/shared/logger/logger';
 
 // Расширяем стандартный конфиг Axios для поддержки флага ретрая
 export interface RetryableConfig extends InternalAxiosRequestConfig {

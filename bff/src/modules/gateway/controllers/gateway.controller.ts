@@ -2,7 +2,8 @@ import { BadRequestException, Controller, Delete, Get, Param, Patch, Post, Put, 
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
-import { config } from '../../config/config';
+import { config } from '@/config/config';
+
 import { HttpClient } from '../services/http-client.service';
 
 @ApiTags('gateway')

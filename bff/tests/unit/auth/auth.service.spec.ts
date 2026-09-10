@@ -2,10 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { initFixtures, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 
-import { AuthService } from '@/auth/services/auth.service';
-import { KeycloakClient } from '@/auth/services/keycloak.service';
-import { RedisService } from '@/redis/services/redis.service';
-import { SessionService } from '@/session/services/session.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { AuthService } from '@/modules/auth/services/auth.service';
+import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
+import { SessionService } from '@/modules/auth/sessions/services/session.service';
 
 describe('AuthService (unit)', () => {
   let authService: AuthService;

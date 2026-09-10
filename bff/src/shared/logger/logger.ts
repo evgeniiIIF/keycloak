@@ -1,4 +1,4 @@
-import { config } from '../../config/config';
+import { config } from '@/config/config';
 
 const RESET = '\x1b[0m';
 const GRAY = '\x1b[90m';

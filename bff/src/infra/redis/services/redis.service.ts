@@ -1,8 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
-import { config } from '../../config/config';
-import { Logger } from '../../shared/logger/logger';
+import { config } from '@/config/config';
+import { Logger } from '@/shared/logger/logger';
+
 import { RedisKeys } from '../constants/redis-key-prefixes';
 
 const REDIS_CONNECT_TIMEOUT_MS = 5000;

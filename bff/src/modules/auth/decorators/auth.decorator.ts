@@ -1,7 +1,7 @@
 import { createParamDecorator, ExecutionContext,SetMetadata } from '@nestjs/common';
 import { Request } from 'express';
 
-import { Session } from '../../types/session';
+import { Session } from '@/modules/auth/types/session';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);

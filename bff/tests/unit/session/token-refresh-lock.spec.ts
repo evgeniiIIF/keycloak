@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { RedisService } from '@/redis/services/redis.service';
-import { TokenRefreshLock } from '@/session/services/token-refresh-lock.service';
+import { RedisService } from '@/infra/redis/services/redis.service';
+import { TokenRefreshLock } from '@/modules/auth/sessions/services/token-refresh-lock.service';
 
 describe('TokenRefreshLock (unit)', () => {
   let tokenRefreshLock: TokenRefreshLock;

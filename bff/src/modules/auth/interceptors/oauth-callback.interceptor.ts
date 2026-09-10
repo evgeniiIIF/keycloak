@@ -2,8 +2,9 @@ import { CallHandler,ExecutionContext, Injectable, NestInterceptor } from '@nest
 import { Request, Response } from 'express';
 import { EMPTY,Observable } from 'rxjs';
 
-import { config } from '../../config/config';
-import { Logger } from '../../shared/logger/logger';
+import { config } from '@/config/config';
+import { Logger } from '@/shared/logger/logger';
+
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()

@@ -5,10 +5,11 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 
+import { config } from '@/config/config';
+import { HttpExceptionFilter } from '@/shared/filters/http-exception.filter';
+import { Logger } from '@/shared/logger/logger';
+
 import { AppModule } from './app.module';
-import { config } from './config/config';
-import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
-import { Logger } from './shared/logger/logger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

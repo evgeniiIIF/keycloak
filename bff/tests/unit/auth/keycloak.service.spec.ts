@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import { KeycloakClient } from '@/auth/services/keycloak.service';
+import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
 
 // Мокаем axios
 jest.mock('axios');

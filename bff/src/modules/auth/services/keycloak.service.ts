@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 
-import { config } from '../../config/config';
-import { TokenSet } from '../../types/keycloak';
+import { config } from '@/config/config';
+import { TokenSet } from '@/modules/auth/types/keycloak';
 
 interface KeycloakBaseParams {
   client_id: string;
