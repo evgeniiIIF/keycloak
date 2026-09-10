@@ -60,6 +60,6 @@ export class AuthController {
   async logout(@AuthSession() session: Session, @Res() res: Response) {
     const logoutUrl = await this.authService.logout(session);
     this.authService.clearSessionCookies(res);
-    res.json({ logoutUrl });
+    res.status(200).json({ logoutUrl });
   }
 }

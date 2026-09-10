@@ -119,10 +119,10 @@ export class AuthService {
 
   validateCsrfToken(session: Session, csrfToken: string | undefined): boolean {
     if (!csrfToken) return false;
-    return crypto.timingSafeEqual(
-      Buffer.from(session.csrfToken),
-      Buffer.from(csrfToken),
-    );
+    const sessionBuf = Buffer.from(session.csrfToken);
+    const tokenBuf = Buffer.from(csrfToken);
+    if (sessionBuf.length !== tokenBuf.length) return false;
+    return crypto.timingSafeEqual(sessionBuf, tokenBuf);
   }
 
   // --- Примитивы ---

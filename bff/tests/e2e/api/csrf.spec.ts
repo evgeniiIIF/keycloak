@@ -1,15 +1,16 @@
-import { test, expect } from '@playwright/test';
+import { expect,test } from '@playwright/test';
+
 import { loginViaUi } from '../helpers/auth.helper';
 
 const TEST_USER = process.env.TEST_USER || 'testuser';
-const TEST_PASSWORD = process.env.TEST_PASSWORD || 'password';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || '123';
 
 test.describe('CSRF Protection', () => {
   test.beforeEach(async ({ page }) => {
     // Авторизуемся перед каждым тестом, чтобы получить сессию и токены
     await page.goto('/login');
     await loginViaUi(page, TEST_USER, TEST_PASSWORD);
-    await page.waitForURL(url => !url.pathname().includes('/auth'));
+    await page.waitForURL(url => !url.href.includes('/auth'));
   });
 
   test('POST /logout without X-CSRF-Token should return 401', async ({ page }) => {

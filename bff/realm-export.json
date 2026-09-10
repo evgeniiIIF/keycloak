@@ -1319,7 +1319,7 @@
     "strictTransportSecurity" : "max-age=31536000; includeSubDomains"
   },
   "smtpServer" : { },
-  "loginTheme" : "react-login",
+  "loginTheme" : "custom-login",
   "accountTheme" : "",
   "adminTheme" : "",
   "emailTheme" : "",

@@ -12,26 +12,6 @@
     </#if>
 </head>
 <body>
-    <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-        <#if message.type == 'error'>
-            <div class="login-alert login-alert--error">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'success'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'warning'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#else>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        </#if>
-    </#if>
-
     <#nested "form">
 
     <#if displayInfo>

@@ -26,6 +26,12 @@
                     </div>
                 </#if>
 
+                <#if message?has_content && message.type == 'error'>
+                    <div class="login-alert login-alert--error" role="alert">
+                        <span>${message.summary}</span>
+                    </div>
+                </#if>
+
                 <form id="kc-form-login" onsubmit="return true;" action="${url.loginAction}" method="post">
 
                     <div class="login-field">
@@ -47,9 +53,6 @@
                                type="text"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
-                        <#if messagesPerField.existsError('username','password')>
-                            <span class="login-field-error">${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</span>
-                        </#if>
                     </div>
 
                     <div class="login-field">
