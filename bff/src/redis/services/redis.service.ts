@@ -1,9 +1,11 @@
-import { Injectable, OnModuleDestroy,OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
 import { config } from '../../config/config';
 import { Logger } from '../../shared/logger/logger';
 import { RedisKeys } from '../constants/redis-key-prefixes';
+
+const REDIS_CONNECT_TIMEOUT_MS = 5000;
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -22,13 +24,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.client.on('connect', () => Logger.info('Redis', 'Connected'));
   }
 
+  // Подключаемся с таймаутом — если Redis недоступен, падаем
   async onModuleInit() {
     try {
-      await this.client.connect();
+      await Promise.race([
+        this.client.connect(),
+        this.rejectAfter(REDIS_CONNECT_TIMEOUT_MS, 'Redis connect timeout'),
+      ]);
+      Logger.info('Redis', 'Connected');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      Logger.error('Redis', `Failed to connect to Redis: ${errorMessage}`);
-      // Не бросаем ошибку, чтобы приложение могло запуститься (хотя будет работать в degraded mode)
+      Logger.error('Redis', `Failed to connect: ${errorMessage}`);
+      throw err;                          // падаем — NestJS не стартует
     }
   }
 
@@ -75,9 +82,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const sessionIds = await this.getUserSessions(userId);
     if (sessionIds.length > 0) {
       const keys = sessionIds.map(sid => `${config.session.prefix}${sid}`);
-      await this.client.del(keys); // удаляем все ключи сессий одним запросом
+      await this.client.del(keys);
     }
-    await this.client.del(RedisKeys.userSessions(userId)); // удаляем список сессий пользователя
+    await this.client.del(RedisKeys.userSessions(userId));
   }
 
   async refreshUserSessionTtl(userId: string): Promise<void> {
@@ -86,5 +93,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async refreshSessionStoreTtl(sessionId: string): Promise<void> {
     await this.client.expire(`${config.session.prefix}${sessionId}`, config.session.ttl);
+  }
+
+  // ── Примитивы ──────────────────────────────────────────────────
+
+  private rejectAfter(ms: number, message: string): Promise<never> {
+    return new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
   }
 }

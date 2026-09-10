@@ -1,9 +1,15 @@
-import { Controller, Get } from '@nestjs/common';
-import { HealthCheck, HealthCheckResult, HealthCheckService, HealthIndicatorResult } from '@nestjs/terminus';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  HealthCheck,
+  HealthCheckResult,
+  HealthCheckService,
+} from '@nestjs/terminus';
 
 import { Public } from '../../auth/decorators/auth.decorator';
 import { RedisService } from '../../redis/services/redis.service';
 
+@ApiTags('health')
 @Public()
 @Controller('health')
 export class HealthController {
@@ -14,19 +20,20 @@ export class HealthController {
 
   @Get()
   @HealthCheck()
+  @ApiOperation({ summary: 'Liveness probe — приложение живо' })
+  @ApiResponse({ status: 200, description: 'Приложение работает' })
   check(): Promise<HealthCheckResult> {
     return this.health.check([]);
   }
 
   @Get('readiness')
-  @HealthCheck()
-  readiness(): Promise<HealthCheckResult> {
-    return this.health.check([() => this.checkRedis()]);
-  }
-
-  private checkRedis(): Promise<HealthIndicatorResult> {
-    return this.redis.client.ping()
-      .then((pong) => ({ redis: { status: pong === 'PONG' ? 'up' as const : 'down' as const } }))
-      .catch(() => ({ redis: { status: 'down' as const } }));
+  @ApiOperation({ summary: 'Readiness probe — проверка подключения к Redis' })
+  @ApiResponse({ status: 200, description: 'Redis доступен' })
+  @ApiResponse({ status: 503, description: 'Redis недоступен' })
+  readiness() {
+    if (!this.redis.client.isReady) {
+      throw new ServiceUnavailableException('Redis is not available');   // 503
+    }
+    return { status: 'ok', redis: { status: 'up' } };
   }
 }
