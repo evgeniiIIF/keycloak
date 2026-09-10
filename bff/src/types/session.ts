@@ -15,4 +15,5 @@ export interface Session {
   id: string;
   user: SessionUser;
   tokens: SessionTokens;
+  csrfToken: string;
 }

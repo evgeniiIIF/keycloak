@@ -11,7 +11,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "lint": "eslint \"{src,tests}/**/*.ts\" --fix",
+    "lint": "eslint \"{src,apps,libs,tests}/**/*.ts\" --fix",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json",
+    "check": "npm run typecheck && npm run lint",
     "format": "prettier --write \"{src,tests}/**/*.ts\"",
     "test:unit": "jest --config tests/jest.config.js --runInBand --verbose",
     "test:integration": "jest --config tests/jest.integration.config.js --runInBand --verbose"

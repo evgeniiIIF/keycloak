@@ -4,13 +4,18 @@ import { Request } from 'express';
 
 import { config } from '../../config/config';
 import { SessionService } from '../../session/services/session.service';
+import { Session } from '../../types/session';
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorator';
+import { AuthService } from '../services/auth.service';
+
+const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly sessionService: SessionService,
+    private readonly authService: AuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -29,7 +34,18 @@ export class AuthGuard implements CanActivate {
 
     await this.sessionService.touch(sessionId, session.user.id);
     
+    if (!SAFE_METHODS.includes(req.method)) {
+      this.validateCsrf(req, session);
+    }
+
     req.session = session;
     return true;
+  }
+
+  private validateCsrf(req: Request, session: Session): void {
+    const csrfToken = req.headers['x-csrf-token'] as string | undefined;
+    if (!this.authService.validateCsrfToken(session, csrfToken)) {
+      throw new UnauthorizedException('Invalid CSRF token');
+    }
   }
 }

@@ -16,7 +16,7 @@ services:
     container_name: keycloak_server_prod
     command: start
     volumes:
-      - ./themes:/opt/keycloak/themes
+      - ./bff/keycloak/themes:/opt/keycloak/themes
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}

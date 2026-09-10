@@ -39,7 +39,7 @@ export class AuthService {
   }
 
   // Обмениваем authorization code на токены и создаем сессию
-  async exchangeCode(code: string, state: string): Promise<string> {
+  async exchangeCode(code: string, state: string): Promise<Session> {
     const codeVerifier = await this.redis.getOAuthState(state); // проверяем state в Redis
     if (!codeVerifier) {
       throw new BadRequestException('Invalid or expired OAuth state'); // бросаем ошибку если state невалиден
@@ -54,7 +54,7 @@ export class AuthService {
     Logger.info('Auth', 'Login complete', {
       user: session.user.username || session.user.email,
     });
-    return session.id;
+    return session;
   }
 
   // Завершаем сессию локально и в Keycloak
@@ -88,9 +88,17 @@ export class AuthService {
   }
 
   // Устанавливаем сессионную куку в ответ
-  async setSessionCookie(res: Response, sessionId: string) {
-    res.cookie(config.session.cookieName, sessionId, {
+  async setSessionCookies(res: Response, session: Session) {
+    res.cookie(config.session.cookieName, session.id, {
       httpOnly: true,
+      secure: config.isProduction,
+      sameSite: 'strict',
+      maxAge: config.session.ttl * 1000,
+      path: '/',
+    });
+
+    res.cookie('XSRF-TOKEN', session.csrfToken, {
+      httpOnly: false,
       secure: config.isProduction,
       sameSite: 'strict',
       maxAge: config.session.ttl * 1000,
@@ -106,6 +114,14 @@ export class AuthService {
       secure: config.isProduction,
     });
     res.clearCookie('XSRF-TOKEN', { path: '/' });
+  }
+
+  validateCsrfToken(session: Session, csrfToken: string | undefined): boolean {
+    if (!csrfToken) return false;
+    return crypto.timingSafeEqual(
+      Buffer.from(session.csrfToken),
+      Buffer.from(csrfToken),
+    );
   }
 
   // --- Примитивы ---

@@ -71,6 +71,7 @@ describe('AuthService (unit)', () => {
       id: 'session-123',
       user: { id: 'user-123', username: 'testuser', email: 'test@example.com', roles: [] },
       tokens: { accessToken: 'access', refreshToken: 'refresh', idToken: 'id' },
+      csrfToken: 'csrf-token-123',
     };
 
     it('успешно обменивает code, создаёт сессию и удаляет state', async () => {
@@ -149,6 +150,7 @@ describe('AuthService (unit)', () => {
       id: 'session-123',
       user: { id: 'user-123', username: 'testuser', email: 'test@example.com', roles: [] },
       tokens: { accessToken: 'access', refreshToken: 'refresh', idToken: 'id-token' },
+      csrfToken: 'csrf-token-123',
     };
 
     it('удаляет сессию, отзывает refresh token и возвращает URL', async () => {

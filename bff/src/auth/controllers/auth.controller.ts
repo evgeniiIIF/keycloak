@@ -25,8 +25,8 @@ export class AuthController {
   @UseInterceptors(OAuthCallbackInterceptor)
   async callback(@Query() query: OAuthCallbackDto, @Res() res: Response) {
     try {
-      const sessionId = await this.authService.exchangeCode(query.code, query.state);
-      await this.authService.setSessionCookie(res, sessionId); // устанавливаем сессионную куку
+      const session = await this.authService.exchangeCode(query.code, query.state);
+      await this.authService.setSessionCookies(res, session); // устанавливаем сессионную куку
       res.redirect(`${config.frontendUrl}/`);                 // перенаправляем на фронтенд
     } catch (err) {
       Logger.error('AuthController', 'Callback failed', { error: (err as Error).message });

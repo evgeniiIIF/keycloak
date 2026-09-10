@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 
 import { config } from '../../config/config';
 import { RedisService } from '../../redis/services/redis.service';
@@ -83,7 +83,12 @@ export class SessionService {
       id: randomUUID(),
       user: this.buildUser(idTokenPayload),
       tokens: this.buildTokens(tokenSet),
+      csrfToken: this.generateCsrfToken(),
     };
+  }
+
+  private generateCsrfToken(): string {
+    return randomBytes(32).toString('hex');
   }
 
   private buildUser(idTokenPayload: KeycloakJwtPayload): SessionUser {
