@@ -98,17 +98,18 @@ describe('AuthService with Redis / AuthService с Redis', () => {
       keycloakClientMock.exchangeCode.mockResolvedValue(validTokenSet);
 
       // Вызываем обмен кода
-      const sessionId = await authService.exchangeCode('test-code', state);
+      const session = await authService.exchangeCode('test-code', state);
 
       // Проверяем, что state удалён из Redis (one-time use)
       const storedVerifier = await redisService.getOAuthState(state);
       expect(storedVerifier).toBeNull();
 
       // Проверяем, что сессия создана и содержит правильные данные
-      const session = await sessionService.get(sessionId);
-      expect(session).toBeDefined();
-      expect(session!.user.id).toBe(idTokenPayload.sub);
-      expect(session!.tokens.accessToken).toBe(validTokenSet.access_token);
+      const storedSession = await sessionService.get(session.id);
+      expect(storedSession).toBeDefined();
+      expect(storedSession!.user.id).toBe(idTokenPayload.sub);
+      expect(storedSession!.tokens.accessToken).toBe(validTokenSet.access_token);
+      expect(storedSession!.csrfToken).toBeDefined();
 
       // Убеждаемся, что KeycloakClient.exchangeCode вызван с правильным verifier
       expect(keycloakClientMock.exchangeCode).toHaveBeenCalledWith('test-code', verifier);
