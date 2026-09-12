@@ -1,25 +1,37 @@
-import { test, expect } from '@playwright/test';
-import { loginViaUi, expectLoginError } from '../helpers/auth.helper';
+/**
+ * Полный OAuth flow через BFF.
+ *
+ * Что проверяем:
+ *   - Успешный логин: /login → Keycloak → форма → /callback → сессия → /api/me.
+ *   - Неверный пароль → Keycloak показывает ошибку.
+ *   - Несуществующий пользователь → Keycloak показывает ошибку.
+ */
+
+import { expect,test } from '@playwright/test';
+
+import { expectLoginError,loginViaUi } from '../helpers/auth.helper';
+import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
 
 const TEST_USER = process.env.TEST_USER || 'testuser';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || '123';
 
 test.describe('Login', () => {
   test('Successful Login: should complete full OAuth flow and create session', async ({ page }) => {
-    await test.step('Redirect to Keycloak', async () => {
+    await test.step('Открываем /login — BFF редиректит на Keycloak', async () => {
       await page.goto('/login');
       expect(page.url()).toContain('/realms/TestRealm/protocol/openid-connect/auth');
     });
 
-    await test.step('Login via Keycloak UI', async () => {
+    await test.step('Логинимся через форму Keycloak', async () => {
       await loginViaUi(page, TEST_USER, TEST_PASSWORD);
     });
 
-    await test.step('Return to BFF', async () => {
+    await test.step('Ждём возврат на BFF', async () => {
       await page.waitForURL(url => !url.href.includes('/auth'));
     });
 
-    await test.step('Verify Session Cookies', async () => {
+    // Проверяем, что BFF установил обе cookie: сессию и CSRF-токен.
+    await test.step('Проверяем cookies', async () => {
       const cookies = await page.context().cookies();
       const sessionCookie = cookies.find(c => c.name === 'connect.sid');
       const csrfCookie = cookies.find(c => c.name === 'XSRF-TOKEN');
@@ -27,7 +39,8 @@ test.describe('Login', () => {
       expect(csrfCookie).toBeDefined();
     });
 
-    await test.step('Verify Access to /api/me', async () => {
+    // Обращаемся к /api/me — проверяем, что сессия работает и данные верные.
+    await test.step('Проверяем доступ к /api/me', async () => {
       const response = await page.request.get('/api/me');
       expect(response.status()).toBe(200);
       const userData = await response.json();
@@ -36,35 +49,38 @@ test.describe('Login', () => {
   });
 
   test('Failed Login: wrong password should show error', async ({ page }) => {
-    await test.step('Redirect to Keycloak', async () => {
+    await test.step('Открываем /login', async () => {
       await page.goto('/login');
     });
 
-    await test.step('Attempt login with wrong password', async () => {
-      // Используем правильный логин, но заведомо неправильный пароль
-      await page.fill('input[name="username"]', TEST_USER);
-      await page.fill('input[name="password"]', 'wrong-password-123');
-      await page.click('input[type="submit"]');
+    // Вводим верный логин, но неверный пароль.
+    // Ожидаем, что Keycloak не пустит и вернёт ошибку.
+    await test.step('Пробуем войти с неверным паролем', async () => {
+      await page.fill(KEYCLOAK_SELECTORS.usernameInput, TEST_USER);
+      await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'wrong-password-123');
+      await page.click(KEYCLOAK_SELECTORS.submitButton);
     });
 
-    await test.step('Verify error message', async () => {
-      // Проверяем, что Keycloak вывел ошибку (обычно это "Invalid username or password")
+    // Keycloak показывает «Invalid username or password».
+    await test.step('Проверяем сообщение об ошибке', async () => {
       await expectLoginError(page, /Invalid username or password/i);
     });
   });
 
   test('Failed Login: non-existent user should show error', async ({ page }) => {
-    await test.step('Redirect to Keycloak', async () => {
+    await test.step('Открываем /login', async () => {
       await page.goto('/login');
     });
 
-    await test.step('Attempt login with non-existent user', async () => {
-      await page.fill('input[name="username"]', 'non-existent-user-999');
-      await page.fill('input[name="password"]', TEST_PASSWORD);
-      await page.click('input[type="submit"]');
+    // Вводим несуществующего пользователя.
+    // Ожидаем ту же ошибку, что и при неверном пароле — Keycloak не раскрывает, что не так.
+    await test.step('Пробуем войти как несуществующий пользователь', async () => {
+      await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'non-existent-user-999');
+      await page.fill(KEYCLOAK_SELECTORS.passwordInput, TEST_PASSWORD);
+      await page.click(KEYCLOAK_SELECTORS.submitButton);
     });
 
-    await test.step('Verify error message', async () => {
+    await test.step('Проверяем сообщение об ошибке', async () => {
       await expectLoginError(page, /Invalid username or password/i);
     });
   });

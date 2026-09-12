@@ -14,7 +14,11 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.6
     container_name: keycloak_server
-    command: start-dev
+    command: >
+      start-dev
+      --spi-theme-cache-themes=false
+      --spi-theme-cache-templates=false
+      --spi-theme-static-max-age=-1
     volumes:
       - ./bff/keycloak/themes:/opt/keycloak/themes
     environment:

@@ -44,6 +44,12 @@ login/login.ftl
                     </div>
                 </#if>
 
+                <#if message?has_content && message.type == 'error'>
+                    <div class="login-alert login-alert--error" role="alert">
+                        <span>${message.summary}</span>
+                    </div>
+                </#if>
+
                 <form id="kc-form-login" onsubmit="return true;" action="${url.loginAction}" method="post">
 
                     <div class="login-field">
@@ -65,9 +71,6 @@ login/login.ftl
                                type="text"
                                aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         />
-                        <#if messagesPerField.existsError('username','password')>
-                            <span class="login-field-error">${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</span>
-                        </#if>
                     </div>
 
                     <div class="login-field">
@@ -160,26 +163,6 @@ login/template.ftl
     </#if>
 </head>
 <body>
-    <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-        <#if message.type == 'error'>
-            <div class="login-alert login-alert--error">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'success'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#elseif message.type == 'warning'>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        <#else>
-            <div class="login-alert login-alert--info">
-                <span>${message.summary}</span>
-            </div>
-        </#if>
-    </#if>
-
     <#nested "form">
 
     <#if displayInfo>

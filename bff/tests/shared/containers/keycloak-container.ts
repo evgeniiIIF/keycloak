@@ -2,7 +2,7 @@ import path from 'path';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
 export async function startKeycloakContainer(): Promise<StartedTestContainer> {
-  const realmFilePath = path.resolve(__dirname, '../fixtures/realm-test.json');
+  const realmFilePath = path.resolve(__dirname, '../../../keycloak/realm-export.json');
   const importDir = '/opt/keycloak/data/import';
 
   return new GenericContainer('quay.io/keycloak/keycloak:26.6')
@@ -25,8 +25,7 @@ export async function startKeycloakContainer(): Promise<StartedTestContainer> {
       },
     ])
     .withWaitStrategy(
-      Wait.forHttp('/realms/TestRealm/.well-known/openid-configuration', 8080)
-        .withStartupTimeout(1800000),
+      Wait.forListeningPorts()
     )
     .withStartupTimeout(1800000)
     .withReuse() // Разрешаем переиспользование контейнера

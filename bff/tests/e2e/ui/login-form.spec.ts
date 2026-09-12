@@ -1,13 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { expect,test } from '@playwright/test';
+
 import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+import { injectTestInfo } from './ui-helpers';
 
 test.describe('Login Form Visuals', () => {
-  test.beforeEach(async ({ page }) => {
-    // Переходим на страницу логина Keycloak
-    // В реальном сценарии это происходит через /login BFF, но для UI-теста формы
-    // можно идти напрямую на Keycloak, если мы знаем URL.
-    // Однако лучше пойти через BFF, чтобы проверить весь флоу.
+  test.beforeEach(async ({ page }, testInfo) => {
     await page.goto('/login');
+    await injectTestInfo(page, testInfo.title);
   });
 
   test('should display all required fields and buttons', async ({ page }) => {

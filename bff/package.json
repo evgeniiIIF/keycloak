@@ -20,7 +20,8 @@
     "test:e2e": "playwright test --project=api",
     "test:e2e:ui": "playwright test --project=ui",
     "test:e2e:debug": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "keycloak:sync": "./keycloak/sync-realm.sh"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

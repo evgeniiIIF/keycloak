@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
+/* ============================================================
+   RESET
+   ============================================================ */
 * {
     margin: 0;
     padding: 0;
@@ -8,7 +11,7 @@
 
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: #f8f9fc;
+    background: #fcf8f8;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -17,13 +20,19 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-.login-container {
+/* ============================================================
+   LOGIN PAGE
+   ============================================================ */
+.login-page {
     width: 100%;
     max-width: 420px;
     padding: 20px;
     margin: 0 auto;
 }
 
+/* ============================================================
+   LOGIN CARD
+   ============================================================ */
 .login-card {
     background: #ffffff;
     border-radius: 16px;
@@ -34,38 +43,31 @@ body {
     border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-.login-logo {
+.login-card__logo {
     text-align: center;
     margin-bottom: 32px;
 }
 
-.login-logo img {
+.login-card__logo img {
     max-height: 64px;
     max-width: 200px;
 }
 
-.login-logo--icon {
+.login-card__logo--icon {
     display: flex;
     justify-content: center;
     align-items: center;
     margin-bottom: 8px;
 }
 
-.login-logo--icon svg {
+.login-card__logo--icon svg {
     width: 64px;
     height: 64px;
 }
 
-.login-card h1 {
-    text-align: center;
-    font-size: 22px;
-    font-weight: 600;
-    color: #111827;
-    margin-bottom: 32px;
-    letter-spacing: -0.02em;
-}
-
-/* Alert / Error */
+/* ============================================================
+   ALERT (глобальная ошибка)
+   ============================================================ */
 .login-alert {
     display: flex;
     align-items: flex-start;
@@ -89,33 +91,18 @@ body {
     border: 1px solid #bfdbfe;
 }
 
-.login-alert__icon {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
+/* ============================================================
+   LOGIN FORM
+   ============================================================ */
+.login-form {
+    width: 100%;
 }
 
-.login-alert--error .login-alert__icon {
-    color: #dc2626;
-}
-
-.login-alert--info .login-alert__icon {
-    color: #2563eb;
-}
-
-.login-alert__icon svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-}
-
-/* Form Fields */
-.login-field {
+.login-form__field {
     margin-bottom: 20px;
 }
 
-.login-label {
+.login-form__label {
     display: block;
     font-size: 14px;
     font-weight: 500;
@@ -123,7 +110,7 @@ body {
     margin-bottom: 8px;
 }
 
-.login-input {
+.login-form__input {
     width: 100%;
     height: 48px;
     padding: 0 16px;
@@ -137,36 +124,38 @@ body {
     transition: all 0.2s ease;
 }
 
-.login-input::placeholder {
+.login-form__input::placeholder {
     color: #9ca3af;
 }
 
-.login-input:focus {
+.login-form__input:focus {
     border-color: #646cff;
     background: #ffffff;
     box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.12);
 }
 
-.login-input--error {
+.login-form__input--error {
     border-color: #fca5a5;
     background: #fff5f5;
 }
 
-.login-input--error:focus {
+.login-form__input--error:focus {
     border-color: #dc2626;
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
-/* Password */
-.login-password-wrapper {
+/* ============================================================
+   PASSWORD
+   ============================================================ */
+.login-form__password-wrapper {
     position: relative;
 }
 
-.login-password-wrapper .login-input {
+.login-form__password-wrapper .login-form__input {
     padding-right: 48px;
 }
 
-.login-password-toggle {
+.login-form__toggle {
     position: absolute;
     right: 4px;
     top: 50%;
@@ -184,22 +173,30 @@ body {
     transition: all 0.15s ease;
 }
 
-.login-password-toggle:hover {
+.login-form__toggle:hover {
     color: #646cff;
     background: rgba(100, 108, 255, 0.06);
 }
 
-.login-password-toggle svg {
+.login-form__toggle:focus-visible {
+    color: #646cff;
+    background: rgba(100, 108, 255, 0.12);
+    box-shadow: 0 0 0 2px #646cff;
+}
+
+.login-form__toggle svg {
     width: 20px;
     height: 20px;
 }
 
-/* Remember Me */
-.login-checkbox-row {
+/* ============================================================
+   REMEMBER ME
+   ============================================================ */
+.login-form__checkbox-row {
     margin-bottom: 24px;
 }
 
-.login-checkbox-label {
+.login-form__checkbox-label {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -209,7 +206,7 @@ body {
     user-select: none;
 }
 
-.login-checkbox-label input[type="checkbox"] {
+.login-form__checkbox-label input[type="checkbox"] {
     width: 18px;
     height: 18px;
     border-radius: 5px;
@@ -220,17 +217,14 @@ body {
     transition: all 0.15s ease;
 }
 
-.login-checkbox-label input[type="checkbox"]:checked {
-    background: #646cff;
-    border-color: #646cff;
-}
-
-/* Submit Button */
-.login-actions {
+/* ============================================================
+   SUBMIT
+   ============================================================ */
+.login-form__actions {
     margin-top: 8px;
 }
 
-.login-button {
+.login-form__button {
     width: 100%;
     height: 48px;
     font-size: 15px;
@@ -245,82 +239,26 @@ body {
     letter-spacing: 0.01em;
 }
 
-.login-button:hover {
+.login-form__button:hover {
     background: #535bf2;
     box-shadow: 0 4px 12px rgba(100, 108, 255, 0.35);
     transform: translateY(-1px);
 }
 
-.login-button:active {
+.login-form__button:active {
     transform: translateY(0);
     box-shadow: 0 2px 6px rgba(100, 108, 255, 0.25);
 }
 
-.login-button:focus-visible {
+.login-form__button:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.3);
 }
 
-/* Social Providers */
-.login-divider {
-    display: flex;
-    align-items: center;
-    margin: 28px 0;
-    gap: 16px;
-}
-
-.login-divider::before,
-.login-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #e5e7eb;
-}
-
-.login-divider span {
-    font-size: 13px;
-    color: #9ca3af;
-    white-space: nowrap;
-}
-
-.login-social {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: center;
-}
-
-.login-social-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 44px;
-    padding: 0 20px;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 10px;
-    background: #ffffff;
-    color: #374151;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: inherit;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.login-social-button:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.login-social-button img {
-    height: 20px;
-    margin-right: 8px;
-}
-
-/* Footer Links */
-.login-footer-links {
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.login-footer {
     display: flex;
     justify-content: center;
     gap: 24px;
@@ -329,7 +267,7 @@ body {
     border-top: 1px solid #f3f4f6;
 }
 
-.login-link {
+.login-footer__link {
     font-size: 14px;
     font-weight: 500;
     color: #646cff;
@@ -337,63 +275,168 @@ body {
     transition: color 0.15s ease;
 }
 
-.login-link:hover {
+.login-footer__link:hover {
     color: #535bf2;
     text-decoration: underline;
 }
 
-.login-powered {
-    text-align: center;
-    margin-top: 24px;
-    font-size: 12px;
-    color: #9ca3af;
-}
-
-.login-powered a {
-    color: #646cff;
-    text-decoration: none;
-}
-
-.login-powered a:hover {
-    text-decoration: underline;
-}
-
-/* Responsive */
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 @media (max-width: 480px) {
     .login-card {
         padding: 36px 24px;
         border-radius: 12px;
     }
 
-    .login-container {
+    .login-page {
         padding: 12px;
     }
 }
 
-/* Focus visible for accessibility */
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
 *:focus-visible {
     outline: 2px solid #646cff;
     outline-offset: 2px;
 }
 
-.login-input:focus-visible,
-.login-button:focus-visible {
+.login-form__input:focus-visible,
+.login-form__button:focus-visible {
     outline: none;
 }
 
-/* Keycloak base overrides */
-#kc-content {
-    width: 100%;
-}
-
-#kc-form {
-    width: 100%;
-}
-
+/* ============================================================
+   KEYCLOAK BASE OVERRIDES
+   ============================================================ */
+#kc-content,
+#kc-form,
 #kc-form-login {
     width: 100%;
 }
 
 #kc-info {
     margin-top: 0;
+}
+
+/* ============================================================
+   CARD TITLE
+   ============================================================ */
+.login-card__title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 32px;
+    letter-spacing: -0.02em;
+}
+
+/* ============================================================
+   FANTASY DRAGON BACKGROUND
+   ============================================================ */
+body {
+    background: url('../svg/dragon.svg') no-repeat center center fixed !important;
+    background-size: cover !important;
+    position: relative;
+}
+
+/* Затемнение фона для читаемости формы */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.login-page {
+    position: relative;
+    z-index: 1;
+}
+
+/* Карточка — полупрозрачная с blur для эффекта "парения над фоном" */
+.login-card {
+    background: rgba(20, 15, 40, 0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(138, 106, 190, 0.3) !important;
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.2),
+        0 8px 32px rgba(106, 74, 158, 0.3),
+        inset 0 0 40px rgba(138, 106, 190, 0.05) !important;
+    color: #e8e0f0 !important;
+}
+
+.login-card__title,
+.login-form__label {
+    color: #d0c0e8 !important;
+}
+
+/* Поля ввода — под тёмную тему */
+.login-form__input {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(138, 106, 190, 0.3) !important;
+    color: #e8e0f0 !important;
+}
+
+.login-form__input:focus {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-color: #8a6abe !important;
+    box-shadow: 0 0 0 3px rgba(138, 106, 190, 0.2) !important;
+}
+
+.login-form__input::placeholder {
+    color: rgba(200, 180, 230, 0.4) !important;
+}
+
+/* Кнопка — с мистическим свечением */
+.login-form__button {
+    background: linear-gradient(135deg, #6a4a9e 0%, #4a2d6b 100%) !important;
+    box-shadow: 0 4px 15px rgba(106, 74, 158, 0.5) !important;
+    transition: all 0.3s ease !important;
+}
+
+.login-form__button:hover {
+    background: linear-gradient(135deg, #8a6abe 0%, #6a4a9e 100%) !important;
+    box-shadow: 0 6px 25px rgba(138, 106, 190, 0.7) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Ссылки — с магическим цветом */
+.login-footer__link {
+    color: #b8a0d8 !important;
+}
+
+.login-footer__link:hover {
+    color: #d8c0f8 !important;
+    text-shadow: 0 0 10px rgba(216, 192, 248, 0.5);
+}
+
+/* Чекбокс */
+.login-form__checkbox-label {
+    color: #b8a0d8 !important;
+}
+
+/* Иконка глаза */
+.login-form__toggle {
+    color: #8a6abe !important;
+}
+
+.login-form__toggle:hover {
+    color: #d8c0f8 !important;
+    background: rgba(138, 106, 190, 0.15) !important;
+}
+
+/* Алерт ошибки — на тёмном фоне */
+.login-alert--error {
+    background: rgba(120, 20, 20, 0.4) !important;
+    color: #ffb0b0 !important;
+    border-color: rgba(200, 60, 60, 0.5) !important;
+}
+
+/* Логотип — свечение */
+.login-card__logo svg {
+    filter: drop-shadow(0 0 15px rgba(138, 106, 190, 0.6));
 }

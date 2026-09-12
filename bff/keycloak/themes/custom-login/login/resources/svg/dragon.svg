@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Градиент неба -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0a1a"/>
+      <stop offset="50%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+
+    <!-- Градиент дракона -->
+    <linearGradient id="dragonBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2d1b4e"/>
+      <stop offset="100%" stop-color="#1a0f2e"/>
+    </linearGradient>
+
+    <!-- Градиент крыльев -->
+    <linearGradient id="wingGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a2d6b" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#2a1a3e" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <!-- Градиент огня -->
+    <radialGradient id="fireGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ff6600" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#ff3300" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#cc0000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Свечение глаз -->
+    <radialGradient id="eyeGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ffff00" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#ffaa00" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff6600" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Фильтр свечения -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="strongGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Фон -->
+  <rect width="800" height="600" fill="url(#sky)"/>
+
+  <!-- Звёзды (мерцание) -->
+  <g opacity="0.6">
+    <circle cx="100" cy="80" r="1.5" fill="white">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="250" cy="120" r="1" fill="white">
+      <animate attributeName="opacity" values="1;0.3;1" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="600" cy="60" r="1.5" fill="white">
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="700" cy="150" r="1" fill="white">
+      <animate attributeName="opacity" values="1;0.4;1" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="450" cy="40" r="1.2" fill="white">
+      <animate attributeName="opacity" values="0.3;0.9;0.3" dur="3.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="50" cy="180" r="1" fill="white">
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="2.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="750" cy="250" r="1.3" fill="white">
+      <animate attributeName="opacity" values="0.4;1;0.4" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="350" cy="200" r="0.8" fill="white">
+      <animate attributeName="opacity" values="0.7;0.2;0.7" dur="2.8s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Луна -->
+  <circle cx="650" cy="100" r="40" fill="#e8e0d0" opacity="0.15"/>
+  <circle cx="660" cy="95" r="38" fill="url(#sky)"/>
+
+  <!-- Горы на фоне -->
+  <path d="M0 450 L100 350 L180 400 L280 320 L400 420 L500 350 L600 400 L700 330 L800 420 L800 600 L0 600 Z" fill="#0d0d1a" opacity="0.6"/>
+
+  <!-- Дракон (силуэт с анимацией полёта) -->
+  <g transform="translate(400, 250)">
+    <!-- Парение -->
+    <animateTransform attributeName="transform" type="translate" values="400,250;400,230;400,250" dur="4s" repeatCount="indefinite" additive="replace"/>
+
+    <!-- Тело дракона -->
+    <ellipse cx="0" cy="0" rx="120" ry="35" fill="url(#dragonBody)" stroke="#6a4a9e" stroke-width="1.5" opacity="0.95"/>
+
+    <!-- Хвост -->
+    <path d="M120 0 Q180 -10 220 -30 Q240 -40 230 -20 Q220 -5 200 10 Q170 25 120 15 Z"
+          fill="url(#dragonBody)" stroke="#6a4a9e" stroke-width="1" opacity="0.9"/>
+    <path d="M220 -30 L240 -50 L235 -35 Z" fill="#4a2d6b" opacity="0.9"/>
+
+    <!-- Шея -->
+    <path d="M-120 -5 Q-180 -30 -220 -60 Q-230 -70 -215 -75 Q-190 -80 -170 -60 Q-150 -40 -110 -20 Z"
+          fill="url(#dragonBody)" stroke="#6a4a9e" stroke-width="1" opacity="0.95"/>
+
+    <!-- Голова -->
+    <g transform="translate(-220, -70)">
+      <ellipse cx="0" cy="0" rx="35" ry="22" fill="url(#dragonBody)" stroke="#6a4a9e" stroke-width="1.5"/>
+      <!-- Морда -->
+      <path d="M-25 -5 Q-55 -15 -60 -5 Q-58 5 -45 5 Q-30 8 -25 5 Z" fill="url(#dragonBody)" stroke="#6a4a9e" stroke-width="1"/>
+      <!-- Рога -->
+      <path d="M-10 -20 L-15 -40 L-5 -30 Z" fill="#4a2d6b" stroke="#8a6abe" stroke-width="1"/>
+      <path d="M10 -20 L15 -42 L5 -30 Z" fill="#4a2d6b" stroke="#8a6abe" stroke-width="1"/>
+      <!-- Глаз с свечением -->
+      <circle cx="-15" cy="-8" r="4" fill="url(#eyeGlow)" filter="url(#strongGlow)">
+        <animate attributeName="r" values="4;5;4" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="-15" cy="-8" r="1.5" fill="#ffff00"/>
+      <!-- Зуб -->
+      <path d="M-45 2 L-42 8 L-40 2 Z" fill="white" opacity="0.9"/>
+      <path d="M-35 3 L-32 9 L-30 3 Z" fill="white" opacity="0.9"/>
+    </g>
+
+    <!-- Крылья (взмахи) -->
+    <g transform="translate(-30, -20)">
+      <!-- Левое крыло -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-15 0 0;-5 0 0;-15 0 0" dur="2s" repeatCount="indefinite"/>
+        <path d="M0 0 Q-40 -70 -110 -90 Q-90 -60 -50 -40 Q-70 -50 -30 -20 Q-50 -25 0 0 Z"
+              fill="url(#wingGrad)" stroke="#6a4a9e" stroke-width="1" opacity="0.85"/>
+        <path d="M-50 -40 Q-70 -55 -90 -70" stroke="#8a6abe" stroke-width="0.8" fill="none" opacity="0.6"/>
+      </g>
+    </g>
+
+    <g transform="translate(30, -20)">
+      <!-- Правое крыло -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="15 0 0;5 0 0;15 0 0" dur="2s" repeatCount="indefinite"/>
+        <path d="M0 0 Q40 -70 110 -90 Q90 -60 50 -40 Q70 -50 30 -20 Q50 -25 0 0 Z"
+              fill="url(#wingGrad)" stroke="#6a4a9e" stroke-width="1" opacity="0.85"/>
+        <path d="M50 -40 Q70 -55 90 -70" stroke="#8a6abe" stroke-width="0.8" fill="none" opacity="0.6"/>
+      </g>
+    </g>
+
+    <!-- Огненное дыхание -->
+    <g transform="translate(-280, -70)">
+      <ellipse cx="0" cy="0" rx="60" ry="20" fill="url(#fireGlow)" filter="url(#strongGlow)" opacity="0.8">
+        <animate attributeName="rx" values="60;80;60" dur="1.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.5s" repeatCount="indefinite"/>
+      </ellipse>
+      <ellipse cx="-30" cy="0" rx="30" ry="10" fill="#ffaa00" filter="url(#glow)" opacity="0.7">
+        <animate attributeName="opacity" values="0.7;0.3;0.7" dur="1s" repeatCount="indefinite"/>
+      </ellipse>
+    </g>
+
+    <!-- Детали на теле (чешуйки) -->
+    <g opacity="0.3">
+      <circle cx="-60" cy="-5" r="3" fill="none" stroke="#8a6abe" stroke-width="0.8"/>
+      <circle cx="-30" cy="-10" r="3" fill="none" stroke="#8a6abe" stroke-width="0.8"/>
+      <circle cx="0" cy="-8" r="3" fill="none" stroke="#8a6abe" stroke-width="0.8"/>
+      <circle cx="30" cy="-5" r="3" fill="none" stroke="#8a6abe" stroke-width="0.8"/>
+      <circle cx="60" cy="0" r="3" fill="none" stroke="#8a6abe" stroke-width="0.8"/>
+    </g>
+
+    <!-- Свечение под драконом (магия) -->
+    <ellipse cx="0" cy="40" rx="150" ry="20" fill="#6a4a9e" opacity="0.15" filter="url(#strongGlow)">
+      <animate attributeName="opacity" values="0.15;0.3;0.15" dur="3s" repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+
+  <!-- Туман снизу -->
+  <ellipse cx="200" cy="580" rx="300" ry="60" fill="#2a1a3e" opacity="0.4">
+    <animate attributeName="cx" values="200;250;200" dur="8s" repeatCount="indefinite"/>
+  </ellipse>
+  <ellipse cx="600" cy="590" rx="350" ry="70" fill="#1a0f2e" opacity="0.5">
+    <animate attributeName="cx" values="600;550;600" dur="10s" repeatCount="indefinite"/>
+  </ellipse>
+</svg>

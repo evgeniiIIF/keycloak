@@ -1,10 +1,29 @@
+/**
+ * Селекторы для кастомной формы Keycloak (themes/custom-login).
+ *
+ * Используем data-testid — стабильные селекторы, не зависящие от CSS-классов
+ * и языка интерфейса. При изменении формы менять только здесь.
+ */
 export const KEYCLOAK_SELECTORS = {
-  usernameInput: '#username',
-  passwordInput: '#password',
-  submitButton: '.login-button',
-  togglePasswordButton: '.login-password-toggle',
-  errorMessage: '.login-field-error',
-  forgotPasswordLink: '.login-footer-links a:has-text("Forgot password?")',
-  registerLink: '.login-footer-links a:has-text("Create account")',
-  rememberMeCheckbox: '#rememberMe',
+  // Форма и карточка
+  loginCard: '[data-testid="login-card"]',
+  loginForm: '#kc-form-login',
+
+  // Поля ввода
+  usernameInput: '[data-testid="username-input"]',
+  passwordInput: '[data-testid="password-input"]',
+
+  // Кнопки
+  submitButton: '[data-testid="submit-button"]',
+  togglePasswordButton: '[data-testid="toggle-password"]',
+
+  // Ошибка аутентификации (глобальный алерт над формой)
+  errorMessage: '[data-testid="error-alert"]',
+
+  // Ссылки в футере
+  forgotPasswordLink: '[data-testid="forgot-password-link"]',
+  registerLink: '[data-testid="register-link"]',
+
+  // Опциональные элементы
+  rememberMeCheckbox: '[data-testid="remember-me-checkbox"]',
 } as const;

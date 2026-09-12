@@ -1,38 +1,51 @@
-import { test, expect } from '@playwright/test';
-import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+/**
+ * Ошибки ввода на форме Keycloak.
+ *
+ * Что проверяем:
+ *   - HTML5-валидация не даёт отправить пустую форму.
+ *   - Keycloak показывает ошибку при неверных данных.
+ */
+
+import { expect,test } from '@playwright/test';
+
 import { expectLoginError } from '../helpers/auth.helper';
+import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+import { injectTestInfo } from './ui-helpers';
 
 test.describe('Login Form Errors', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     await page.goto('/login');
+    await injectTestInfo(page, testInfo.title);
   });
 
+  // Нажимаем submit с пустыми полями.
+  // Ожидаем, что браузер не даёт отправить — поле username invalid.
   test('should show HTML5 validation for empty fields', async ({ page }) => {
-    const submitBtn = page.locator(KEYCLOAK_SELECTORS.submitButton);
+    await page.click(KEYCLOAK_SELECTORS.submitButton);
 
-    // Очищаем поля (хотя они и так пустые)
-    await page.fill(KEYCLOAK_SELECTORS.usernameInput, '');
-    await page.fill(KEYCLOAK_SELECTORS.passwordInput, '');
+    // Остаёмся на той же странице — форма не отправилась.
+    expect(page.url()).toContain('/realms/TestRealm/protocol/openid-connect/auth');
 
-    await submitBtn.click();
-
-    // Проверяем, что форма не была отправлена (мы всё еще на странице логина)
-    // И что браузер показывает валидацию (через атрибут required)
+    // Поле username помечено как invalid браузером.
     const usernameInput = page.locator(KEYCLOAK_SELECTORS.usernameInput);
-    await expect(usernameInput).toHaveAttribute('required', '');
+    const isInvalid = await usernameInput.evaluate(
+      (el: HTMLInputElement) => !el.validity.valid
+    );
+    expect(isInvalid).toBe(true);
   });
 
+  // Вводим существующий логин и неверный пароль.
+  // Ожидаем алерт "Invalid username or password".
   test('should show Keycloak error for invalid password', async ({ page }) => {
-    // Используем существующего пользователя, но неверный пароль
     await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'testuser');
     await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'wrong-password');
     await page.click(KEYCLOAK_SELECTORS.submitButton);
 
-    // Ожидаем появления сообщения об ошибке от Keycloak
-    // Текст ошибки зависит от настроек Keycloak, обычно "Invalid username or password"
     await expectLoginError(page, /Invalid username or password|Invalid credentials/i);
   });
 
+  // Вводим несуществующего пользователя.
+  // Ожидаем ту же ошибку — Keycloak не раскрывает детали.
   test('should show error for non-existent user', async ({ page }) => {
     await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'non-existent-user-123');
     await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'some-password');

@@ -1,0 +1,515 @@
+СТРУКТУРА ПРОЕКТА:
+==================================================
+
+    fixtures/
+        ├── .gitkeep
+    ui/
+        ├── .gitkeep
+        ├── login-errors.spec.ts
+        ├── login-form.spec.ts
+        ├── login-ux.spec.ts
+    api/
+        ├── .gitkeep
+        ├── backchannel-logout.spec.ts
+        ├── csrf.spec.ts
+        ├── errors.spec.ts
+        ├── login.spec.ts
+        ├── logout.spec.ts
+    helpers/
+        ├── .gitkeep
+        ├── auth.helper.ts
+        ├── selectors.ts
+
+==================================================
+
+СОДЕРЖИМОЕ ФАЙЛОВ:
+==================================================
+
+fixtures/.gitkeep
+-----------------
+
+
+ui/.gitkeep
+-----------
+
+
+ui/login-errors.spec.ts
+-----------------------
+import { expect,test } from '@playwright/test';
+
+import { expectLoginError } from '../helpers/auth.helper';
+import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+
+test.describe('Login Form Errors', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+  });
+
+  test('should show HTML5 validation for empty fields', async ({ page }) => {
+    const submitBtn = page.locator(KEYCLOAK_SELECTORS.submitButton);
+
+    // Очищаем поля (хотя они и так пустые)
+    await page.fill(KEYCLOAK_SELECTORS.usernameInput, '');
+    await page.fill(KEYCLOAK_SELECTORS.passwordInput, '');
+
+    await submitBtn.click();
+
+    // Проверяем, что форма не была отправлена (мы всё еще на странице логина)
+    // И что браузер показывает валидацию (через атрибут required)
+    const usernameInput = page.locator(KEYCLOAK_SELECTORS.usernameInput);
+    await expect(usernameInput).toHaveAttribute('required', '');
+  });
+
+  test('should show Keycloak error for invalid password', async ({ page }) => {
+    // Используем существующего пользователя, но неверный пароль
+    await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'testuser');
+    await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'wrong-password');
+    await page.click(KEYCLOAK_SELECTORS.submitButton);
+
+    // Ожидаем появления сообщения об ошибке от Keycloak
+    // Текст ошибки зависит от настроек Keycloak, обычно "Invalid username or password"
+    await expectLoginError(page, /Invalid username or password|Invalid credentials/i);
+  });
+
+  test('should show error for non-existent user', async ({ page }) => {
+    await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'non-existent-user-123');
+    await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'some-password');
+    await page.click(KEYCLOAK_SELECTORS.submitButton);
+
+    await expectLoginError(page, /Invalid username or password|Invalid credentials/i);
+  });
+});
+
+
+ui/login-form.spec.ts
+---------------------
+import { expect,test } from '@playwright/test';
+
+import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+
+test.describe('Login Form Visuals', () => {
+  test.beforeEach(async ({ page }) => {
+    // Переходим на страницу логина Keycloak
+    // В реальном сценарии это происходит через /login BFF, но для UI-теста формы
+    // можно идти напрямую на Keycloak, если мы знаем URL.
+    // Однако лучше пойти через BFF, чтобы проверить весь флоу.
+    await page.goto('/login');
+  });
+
+  test('should display all required fields and buttons', async ({ page }) => {
+    await expect(page.locator(KEYCLOAK_SELECTORS.usernameInput)).toBeVisible();
+    await expect(page.locator(KEYCLOAK_SELECTORS.passwordInput)).toBeVisible();
+    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeVisible();
+    await expect(page.locator(KEYCLOAK_SELECTORS.togglePasswordButton)).toBeVisible();
+  });
+
+  test('should toggle password visibility', async ({ page }) => {
+    const passwordInput = page.locator(KEYCLOAK_SELECTORS.passwordInput);
+    const toggleBtn = page.locator(KEYCLOAK_SELECTORS.togglePasswordButton);
+
+    // По умолчанию пароль скрыт
+    await expect(passwordInput).toHaveAttribute('type', 'password');
+
+    // Нажимаем показать
+    await toggleBtn.click();
+    await expect(passwordInput).toHaveAttribute('type', 'text');
+
+    // Нажимаем скрыть
+    await toggleBtn.click();
+    await expect(passwordInput).toHaveAttribute('type', 'password');
+  });
+
+  test('should be responsive on mobile view', async ({ page }) => {
+    // Меняем размер окна на мобильный
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    await expect(page.locator('.login-card')).toBeVisible();
+    await expect(page.locator(KEYCLOAK_SELECTORS.usernameInput)).toBeVisible();
+    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeVisible();
+  });
+});
+
+
+ui/login-ux.spec.ts
+-------------------
+import { expect,test } from '@playwright/test';
+
+import { KEYCLOAK_SELECTORS } from '../helpers/selectors';
+
+test.describe('Login Form UX', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+  });
+
+  test('should submit form on Enter in password field', async ({ page }) => {
+    await page.fill(KEYCLOAK_SELECTORS.usernameInput, 'testuser');
+    await page.fill(KEYCLOAK_SELECTORS.passwordInput, 'password');
+
+    // Нажимаем Enter
+    await page.keyboard.press('Enter');
+
+    // Проверяем, что началась отправка (например, кнопка стала disabled или URL изменился)
+    // В нашем App.tsx кнопка становится disabled при loading
+    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeDisabled();
+  });
+
+  test('should have correct Tab order', async ({ page }) => {
+    // Фокус по умолчанию на username (автофокус)
+    await expect(page.locator(KEYCLOAK_SELECTORS.usernameInput)).toBeFocused();
+
+    // Tab -> Password
+    await page.keyboard.press('Tab');
+    await expect(page.locator(KEYCLOAK_SELECTORS.passwordInput)).toBeFocused();
+
+    // Tab -> Toggle Password
+    await page.keyboard.press('Tab');
+    await expect(page.locator(KEYCLOAK_SELECTORS.togglePasswordButton)).toBeFocused();
+
+    // Tab -> Submit
+    await page.keyboard.press('Tab');
+    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeFocused();
+  });
+
+  test('should redirect to "Forgot password?" page', async ({ page }) => {
+    await page.click(KEYCLOAK_SELECTORS.forgotPasswordLink);
+
+    // Проверяем редирект на страницу восстановления пароля Keycloak
+    expect(page.url()).toContain('/auth/realms/TestRealm/login-actions/forgot-password');
+  });
+});
+
+
+api/.gitkeep
+------------
+
+
+api/backchannel-logout.spec.ts
+------------------------------
+import { expect,test } from '@playwright/test';
+
+test.describe('Backchannel Logout', () => {
+  test('without logout_token should return 400', async ({ page }) => {
+    const response = await page.request.post('/api/auth/backchannel-logout', {
+      data: {},
+    });
+    expect(response.status()).toBe(400);
+  });
+
+  test('with token missing sub should return 401', async ({ page }) => {
+    // Создаем токен с невалидной подписью (jwtVerify упадет с ошибкой)
+    const invalidToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ9.signature';
+
+    const response = await page.request.post('/api/auth/backchannel-logout', {
+      data: {
+        logout_token: invalidToken,
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test('with invalid signature should return 401', async ({ page }) => {
+    const invalidToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiS1MjM0NTY3ODkifQ.invalid_signature';
+
+    const response = await page.request.post('/api/auth/backchannel-logout', {
+      data: {
+        logout_token: invalidToken,
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+});
+
+
+api/csrf.spec.ts
+----------------
+import { expect,test } from '@playwright/test';
+
+import { loginViaUi } from '../helpers/auth.helper';
+
+const TEST_USER = process.env.TEST_USER || 'testuser';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || '123';
+
+test.describe('CSRF Protection', () => {
+  test.beforeEach(async ({ page }) => {
+    // Авторизуемся перед каждым тестом, чтобы получить сессию и токены
+    await page.goto('/login');
+    await loginViaUi(page, TEST_USER, TEST_PASSWORD);
+    await page.waitForURL(url => !url.href.includes('/auth'));
+  });
+
+  test('POST /logout without X-CSRF-Token should return 401', async ({ page }) => {
+    const response = await page.request.post('/logout');
+    expect(response.status()).toBe(401);
+  });
+
+  test('POST /logout with invalid token should return 401', async ({ page }) => {
+    const response = await page.request.post('/logout', {
+      headers: {
+        'X-CSRF-Token': 'invalid-token-123',
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test('POST /logout with valid token should return 200', async ({ page }) => {
+    const cookies = await page.context().cookies();
+    const csrfCookie = cookies.find(c => c.name === 'XSRF-TOKEN');
+
+    expect(csrfCookie).toBeDefined();
+
+    const response = await page.request.post('/logout', {
+      headers: {
+        'X-CSRF-Token': csrfCookie!.value,
+      },
+    });
+    expect(response.status()).toBe(200);
+  });
+
+  test('GET request should not require CSRF token', async ({ page }) => {
+    const response = await page.request.get('/api/me');
+    expect(response.status()).toBe(200);
+  });
+});
+
+
+api/errors.spec.ts
+------------------
+import { expect,test } from '@playwright/test';
+
+test.describe('Authorization Errors', () => {
+  test('GET /api/me without session cookie should return 401', async ({ page }) => {
+    // Очищаем все куки текущего контекста
+    await page.context().clearCookies();
+
+    const response = await page.request.get('/api/me');
+    expect(response.status()).toBe(401);
+  });
+
+  test('GET /api/me with nonexistent session should return 401', async ({ page }) => {
+    await page.context().addCookies([{
+      name: 'connect.sid',
+      value: 'non-existent-session-id',
+      domain: 'localhost',
+      path: '/',
+    }]);
+
+    const response = await page.request.get('/api/me');
+    expect(response.status()).toBe(401);
+  });
+
+  test('GET /callback with invalid state should redirect to login with error', async ({ page }) => {
+    await page.goto('/callback?code=somecode&state=invalid_state');
+
+    // Ожидаем редирект на /login с ошибкой
+    expect(page.url()).toContain('/login');
+    expect(page.url()).toContain('error=');
+  });
+
+  test('GET /callback without code should redirect to login with error', async ({ page }) => {
+    await page.goto('/callback?state=some_state');
+
+    expect(page.url()).toContain('/login');
+    expect(page.url()).toContain('error=');
+  });
+
+  test('GET /callback with error=access_denied should redirect to login with error', async ({ page }) => {
+    await page.goto('/callback?error=access_denied');
+
+    expect(page.url()).toContain('/login');
+    expect(page.url()).toContain('error=');
+  });
+});
+
+
+api/login.spec.ts
+-----------------
+import { expect,test } from '@playwright/test';
+
+import { expectLoginError,loginViaUi } from '../helpers/auth.helper';
+
+const TEST_USER = process.env.TEST_USER || 'testuser';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || '123';
+
+test.describe('Login', () => {
+  test('Successful Login: should complete full OAuth flow and create session', async ({ page }) => {
+    await test.step('Redirect to Keycloak', async () => {
+      await page.goto('/login');
+      expect(page.url()).toContain('/realms/TestRealm/protocol/openid-connect/auth');
+    });
+
+    await test.step('Login via Keycloak UI', async () => {
+      await loginViaUi(page, TEST_USER, TEST_PASSWORD);
+    });
+
+    await test.step('Return to BFF', async () => {
+      await page.waitForURL(url => !url.href.includes('/auth'));
+    });
+
+    await test.step('Verify Session Cookies', async () => {
+      const cookies = await page.context().cookies();
+      const sessionCookie = cookies.find(c => c.name === 'connect.sid');
+      const csrfCookie = cookies.find(c => c.name === 'XSRF-TOKEN');
+      expect(sessionCookie).toBeDefined();
+      expect(csrfCookie).toBeDefined();
+    });
+
+    await test.step('Verify Access to /api/me', async () => {
+      const response = await page.request.get('/api/me');
+      expect(response.status()).toBe(200);
+      const userData = await response.json();
+      expect(userData.user.username).toBe(TEST_USER);
+    });
+  });
+
+  test('Failed Login: wrong password should show error', async ({ page }) => {
+    await test.step('Redirect to Keycloak', async () => {
+      await page.goto('/login');
+    });
+
+    await test.step('Attempt login with wrong password', async () => {
+      // Используем правильный логин, но заведомо неправильный пароль
+      await page.fill('input[name="username"]', TEST_USER);
+      await page.fill('input[name="password"]', 'wrong-password-123');
+      await page.click('input[type="submit"]');
+    });
+
+    await test.step('Verify error message', async () => {
+      // Проверяем, что Keycloak вывел ошибку (обычно это "Invalid username or password")
+      await expectLoginError(page, /Invalid username or password/i);
+    });
+  });
+
+  test('Failed Login: non-existent user should show error', async ({ page }) => {
+    await test.step('Redirect to Keycloak', async () => {
+      await page.goto('/login');
+    });
+
+    await test.step('Attempt login with non-existent user', async () => {
+      await page.fill('input[name="username"]', 'non-existent-user-999');
+      await page.fill('input[name="password"]', TEST_PASSWORD);
+      await page.click('input[type="submit"]');
+    });
+
+    await test.step('Verify error message', async () => {
+      await expectLoginError(page, /Invalid username or password/i);
+    });
+  });
+});
+
+
+api/logout.spec.ts
+------------------
+import { expect,test } from '@playwright/test';
+
+import { loginViaUi } from '../helpers/auth.helper';
+
+const TEST_USER = process.env.TEST_USER || 'testuser';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || '123';
+
+test.describe('Logout', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    await loginViaUi(page, TEST_USER, TEST_PASSWORD);
+    await page.waitForURL(url => !url.href.includes('/auth'));
+  });
+
+  test('POST /logout should clear session and return logoutUrl', async ({ page }) => {
+    const cookies = await page.context().cookies();
+    const csrfCookie = cookies.find(c => c.name === 'XSRF-TOKEN');
+
+    const response = await page.request.post('/logout', {
+      headers: {
+        'X-CSRF-Token': csrfCookie!.value,
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body).toHaveProperty('logoutUrl');
+
+    // Проверяем, что сессия больше не работает
+    const meResponse = await page.request.get('/api/me');
+    expect(meResponse.status()).toBe(401);
+  });
+});
+
+
+helpers/.gitkeep
+----------------
+
+
+helpers/auth.helper.ts
+----------------------
+import { expect,Page } from '@playwright/test';
+
+import { KEYCLOAK_SELECTORS } from './selectors';
+
+/**
+ * Проходит процесс авторизации через UI форму Keycloak
+ */
+export async function loginViaUi(page: Page, username: string, password: string) {
+  console.log(`[DEBUG] Starting login for user: ${username}`);
+
+  // Слушаем консоль браузера для отлова ошибок JS
+  page.on('console', msg => {
+    if (msg.type() === 'error') {
+      console.log(`[BROWSER ERROR] ${msg.text()}`);
+    }
+  });
+
+  // Ожидаем загрузки полей формы
+  await page.waitForSelector(KEYCLOAK_SELECTORS.usernameInput);
+  console.log('[DEBUG] Login form loaded');
+
+  // Вводим данные
+  await page.fill(KEYCLOAK_SELECTORS.usernameInput, username);
+  await page.fill(KEYCLOAK_SELECTORS.passwordInput, password);
+  console.log('[DEBUG] Credentials entered');
+
+  // Нажимаем кнопку входа
+  console.log('[DEBUG] Clicking submit button');
+  await page.click(KEYCLOAK_SELECTORS.submitButton);
+
+  // Ждем либо успешного редиректа, либо появления ошибки
+  try {
+    await Promise.race([
+      page.waitForURL(url => url.href.includes('/callback') || !url.href.includes('/auth')),
+      page.waitForSelector(KEYCLOAK_SELECTORS.errorMessage, { timeout: 10000 }).then(() => {
+        throw new Error(`Login failed: ${KEYCLOAK_SELECTORS.errorMessage} appeared`);
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Diagnostic timeout: no redirect or error after 10s')), 10000))
+    ]);
+    console.log('[DEBUG] Navigation successful');
+  } catch (e: any) {
+    const currentUrl = page.url();
+    const errorText = await page.locator(KEYCLOAK_SELECTORS.errorMessage).innerText().catch(() => 'No error message found');
+    console.log(`[DEBUG] Wait failed. Current URL: ${currentUrl}`);
+    console.log(`[DEBUG] Error element text: ${errorText}`);
+    throw e;
+  }
+}
+
+/**
+ * Проверяет наличие ошибки на форме логина
+ */
+export async function expectLoginError(page: Page, expectedText: string | RegExp) {
+  const errorEl = page.locator(KEYCLOAK_SELECTORS.errorMessage);
+  await expect(errorEl).toBeVisible();
+  await expect(errorEl).toHaveText(expectedText);
+}
+
+
+helpers/selectors.ts
+--------------------
+export const KEYCLOAK_SELECTORS = {
+  usernameInput: '#username',
+  passwordInput: '#password',
+  submitButton: '.login-button',
+  togglePasswordButton: '.login-password-toggle',
+  errorMessage: '.login-field-error',
+  forgotPasswordLink: '.login-footer-links a:has-text("Forgot password?")',
+  registerLink: '.login-footer-links a:has-text("Create account")',
+  rememberMeCheckbox: '#rememberMe',
+} as const;
+
+
