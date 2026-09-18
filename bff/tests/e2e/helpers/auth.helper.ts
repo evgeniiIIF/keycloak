@@ -38,7 +38,7 @@ export async function loginViaUi(page: Page, username: string, password: string)
       new Promise((_, reject) => setTimeout(() => reject(new Error('Diagnostic timeout: no redirect or error after 10s')), 10000))
     ]);
     console.log('[DEBUG] Navigation successful');
-  } catch (e: any) {
+  } catch (e: unknown) {
     const currentUrl = page.url();
     const errorText = await page.locator(KEYCLOAK_SELECTORS.errorMessage).innerText().catch(() => 'No error message found');
     console.log(`[DEBUG] Wait failed. Current URL: ${currentUrl}`);

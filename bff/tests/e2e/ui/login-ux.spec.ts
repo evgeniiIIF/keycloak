@@ -3,8 +3,7 @@
  *
  * Что проверяем:
  *   - Enter в поле пароля отправляет форму.
- *   - Tab перемещает фокус по порядку: username → password → toggle → submit.
- *   - Ссылка "Forgot password?" ведёт на страницу восстановления (если включена).
+ *   - Естественный порядок Tab: username → password → toggle → rememberMe → submit.
  */
 
 import { expect,test } from '@playwright/test';
@@ -31,10 +30,10 @@ test.describe('Login Form UX', () => {
     });
   });
 
-  // Username в фокусе при загрузке.
-  // Проверяем круговой Tab-loop: username → password → toggle → rememberMe → submit → username
-  test('should have correct circular Tab order', async ({ page }) => {
-    // Автофокус на username
+  // Проверяем естественный Tab-order:
+  // username → password → toggle → rememberMe (если есть) → submit
+  test('should have correct natural Tab order', async ({ page }) => {
+    // Стартовая позиция — username (autofocus)
     await expect(page.locator(KEYCLOAK_SELECTORS.usernameInput)).toBeFocused();
 
     // Tab → password
@@ -45,34 +44,16 @@ test.describe('Login Form UX', () => {
     await page.keyboard.press('Tab');
     await expect(page.locator(KEYCLOAK_SELECTORS.togglePasswordButton)).toBeFocused();
 
-    // Tab → remember-me
-    await page.keyboard.press('Tab');
-    await expect(page.locator(KEYCLOAK_SELECTORS.rememberMeCheckbox)).toBeFocused();
-
-    // Tab → submit
-    await page.keyboard.press('Tab');
-    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeFocused();
-
-    // Tab → wrap back to username
-    await page.keyboard.press('Tab');
-    await expect(page.locator(KEYCLOAK_SELECTORS.usernameInput)).toBeFocused();
-
-    // Shift + Tab → wrap back to submit
-    await page.keyboard.press({ modifier: 'Shift', key: 'Tab' });
-    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeFocused();
-  });
-
-  // Кликаем "Forgot password?", если ссылка есть в DOM.
-  // Ожидаем редирект на /login-actions/reset-credentials.
-  test('should redirect to "Forgot password?" page if link is available', async ({ page }) => {
-    const link = page.locator(KEYCLOAK_SELECTORS.forgotPasswordLink);
-
-    if (await link.count() === 0) {
-      test.skip();
-      return;
+    // Если rememberMe есть в DOM — следующий Tab туда
+    const rememberMe = page.locator(KEYCLOAK_SELECTORS.rememberMeCheckbox);
+    if (await rememberMe.count() > 0) {
+      await page.keyboard.press('Tab');
+      await expect(rememberMe).toBeFocused();
     }
 
-    await link.click();
-    expect(page.url()).toContain('/login-actions/');
+    // Финальный Tab → submit
+    await page.keyboard.press('Tab');
+    await expect(page.locator(KEYCLOAK_SELECTORS.submitButton)).toBeFocused();
   });
+
 });

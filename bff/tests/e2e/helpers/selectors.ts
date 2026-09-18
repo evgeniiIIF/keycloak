@@ -20,8 +20,7 @@ export const KEYCLOAK_SELECTORS = {
   // Ошибка аутентификации (глобальный алерт над формой)
   errorMessage: '[data-testid="error-alert"]',
 
-  // Ссылки в футере
-  forgotPasswordLink: '[data-testid="forgot-password-link"]',
+  // Ссылка регистрации
   registerLink: '[data-testid="register-link"]',
 
   // Опциональные элементы

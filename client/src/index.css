@@ -5,8 +5,24 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #242424;
+  background: url('/svg/dragon.svg') no-repeat center center fixed;
+  background-size: cover;
   color: white;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 0;
+  pointer-events: none;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 #root {
@@ -37,11 +53,17 @@ body {
 }
 
 .card {
-  background: #1a1a1a;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #333;
+  background: rgba(20, 15, 40, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1.5rem 2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 106, 190, 0.3);
+  box-shadow:
+    0 8px 32px rgba(106, 74, 158, 0.3),
+    inset 0 0 40px rgba(138, 106, 190, 0.05);
   margin-top: 1rem;
+  color: #e8e0f0;
 }
 
 .status {

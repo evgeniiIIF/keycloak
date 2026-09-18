@@ -1,0 +1,277 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#050510"/>
+      <stop offset="40%" stop-color="#0a0a1a"/>
+      <stop offset="70%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+
+    <linearGradient id="dragonBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5a3d8e"/>
+      <stop offset="100%" stop-color="#1a0f2e"/>
+    </linearGradient>
+
+    <linearGradient id="wingGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a2d6b" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#2a1a3e" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <linearGradient id="farMountains" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a3a6a"/>
+      <stop offset="40%" stop-color="#252545"/>
+      <stop offset="100%" stop-color="#151530"/>
+    </linearGradient>
+
+    <linearGradient id="midMountains" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2a50"/>
+      <stop offset="40%" stop-color="#1a1a35"/>
+      <stop offset="100%" stop-color="#0d0d1f"/>
+    </linearGradient>
+
+    <linearGradient id="nearMountains" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a35"/>
+      <stop offset="100%" stop-color="#050508"/>
+    </linearGradient>
+
+    <radialGradient id="fireGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ffaa00" stop-opacity="1"/>
+      <stop offset="30%" stop-color="#ff6600" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#ff3300" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#cc0000" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="eyeGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ffff00" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#ffaa00" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff6600" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="moonGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#fff8e0" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#fff8e0" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="strongGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8"/>
+      <feMerge><feMergeNode/><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <filter id="cloudBlur"><feGaussianBlur stdDeviation="1.5"/></filter>
+
+    <g id="cloud">
+      <ellipse cx="0" cy="0" rx="70" ry="18" fill="#3a2a5e" opacity="0.35" filter="url(#cloudBlur)"/>
+      <ellipse cx="25" cy="-6" rx="45" ry="14" fill="#4a3a6e" opacity="0.3" filter="url(#cloudBlur)"/>
+      <ellipse cx="-25" cy="4" rx="50" ry="11" fill="#2a1a4e" opacity="0.35" filter="url(#cloudBlur)"/>
+    </g>
+
+    <g id="bird">
+      <path d="M-8 0 Q-4 -4 0 -1 Q4 -4 8 0 Q4 -2 0 1 Q-4 -2 -8 0 Z" fill="#0a0510" opacity="0.7"/>
+    </g>
+
+    <!-- ДРАКОН как группа — рисуем зеркально, чтобы голова была справа -->
+    <g id="dragon">
+      <!-- Хвост (в отражении окажется слева) -->
+      <path d="M-140 0 Q-210 -15 -260 -40 Q-285 -50 -275 -25 Q-260 -5 -235 15 Q-195 32 -140 18 Z"
+            fill="url(#dragonBody)" stroke="#8a6abe" stroke-width="1.5"/>
+      <path d="M-260 -40 L-285 -65 L-275 -45 Z" fill="#5a3d8e"/>
+
+      <!-- Шея -->
+      <path d="M140 -5 Q210 -35 255 -70 Q265 -82 245 -88 Q215 -95 195 -70 Q175 -45 130 -22 Z"
+            fill="url(#dragonBody)" stroke="#8a6abe" stroke-width="1.5"/>
+
+      <!-- Тело -->
+      <ellipse cx="0" cy="0" rx="140" ry="40" fill="url(#dragonBody)" stroke="#8a6abe" stroke-width="1.5"/>
+
+      <!-- Голова (зеркальная, окажется справа) -->
+      <g transform="translate(255, -82)">
+        <ellipse cx="0" cy="0" rx="40" ry="25" fill="url(#dragonBody)" stroke="#8a6abe" stroke-width="1.5"/>
+        <path d="M30 -6 Q65 -18 70 -6 Q68 6 52 6 Q35 10 30 6 Z" fill="url(#dragonBody)" stroke="#8a6abe" stroke-width="1.5"/>
+        <path d="M12 -22 L18 -45 L6 -35 Z" fill="#5a3d8e" stroke="#a88ac8" stroke-width="1.5"/>
+        <path d="M-12 -22 L-18 -48 L-6 -35 Z" fill="#5a3d8e" stroke="#a88ac8" stroke-width="1.5"/>
+        <circle cx="18" cy="-9" r="5" fill="url(#eyeGlow)" filter="url(#strongGlow)">
+          <animate attributeName="r" values="5;6;5" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="18" cy="-9" r="2" fill="#ffff00"/>
+        <path d="M52 2 L48 10 L45 2 Z" fill="white" opacity="0.95"/>
+        <path d="M40 3 L36 11 L33 3 Z" fill="white" opacity="0.95"/>
+      </g>
+
+      <!-- Крыло 1 (левое, окажется справа после отражения) -->
+      <g transform="translate(30, -25)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate"
+            values="-18 0 0;-4 0 0;-18 0 0" dur="1.8s" repeatCount="indefinite"/>
+          <path d="M0 0 Q50 -90 130 -115 Q105 -75 55 -50 Q85 -65 35 -25 Q60 -30 0 0 Z"
+                fill="url(#wingGrad)" stroke="#8a6abe" stroke-width="1.5"/>
+          <path d="M55 -50 Q80 -70 105 -90" stroke="#a88ac8" stroke-width="1" fill="none" opacity="0.7"/>
+        </g>
+      </g>
+
+      <!-- Крыло 2 (правое, окажется слева после отражения) -->
+      <g transform="translate(-30, -25)">
+        <g>
+          <animateTransform attributeName="transform" type="rotate"
+            values="18 0 0;4 0 0;18 0 0" dur="1.8s" repeatCount="indefinite"/>
+          <path d="M0 0 Q-50 -90 -130 -115 Q-105 -75 -55 -50 Q-85 -65 -35 -25 Q-60 -30 0 0 Z"
+                fill="url(#wingGrad)" stroke="#8a6abe" stroke-width="1.5"/>
+          <path d="M-55 -50 Q-80 -70 -105 -90" stroke="#a88ac8" stroke-width="1" fill="none" opacity="0.7"/>
+        </g>
+      </g>
+
+      <!-- Огонь (зеркальный, окажется справа) -->
+      <g transform="translate(330, -82)">
+        <ellipse cx="0" cy="0" rx="80" ry="25" fill="url(#fireGlow)" filter="url(#strongGlow)" opacity="0.9">
+          <animate attributeName="rx" values="70;100;70" dur="1.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.9;0.5;0.9" dur="1.4s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="40" cy="0" rx="40" ry="12" fill="#ffcc00" filter="url(#glow)" opacity="0.8">
+          <animate attributeName="opacity" values="0.8;0.4;0.8" dur="0.9s" repeatCount="indefinite"/>
+        </ellipse>
+      </g>
+
+      <!-- Чешуйки -->
+      <g opacity="0.5">
+        <circle cx="-80" cy="-6" r="4" fill="none" stroke="#a88ac8" stroke-width="1"/>
+        <circle cx="-40" cy="-12" r="4" fill="none" stroke="#a88ac8" stroke-width="1"/>
+        <circle cx="0" cy="-10" r="4" fill="none" stroke="#a88ac8" stroke-width="1"/>
+        <circle cx="40" cy="-6" r="4" fill="none" stroke="#a88ac8" stroke-width="1"/>
+        <circle cx="80" cy="0" r="4" fill="none" stroke="#a88ac8" stroke-width="1"/>
+      </g>
+
+      <!-- Свечение снизу -->
+      <ellipse cx="0" cy="55" rx="180" ry="25" fill="#6a4a9e" opacity="0.2" filter="url(#strongGlow)">
+        <animate attributeName="opacity" values="0.2;0.35;0.2" dur="3s" repeatCount="indefinite"/>
+      </ellipse>
+    </g>
+  </defs>
+
+  <!-- Небо -->
+  <rect width="1600" height="900" fill="url(#sky)"/>
+
+  <!-- ═══ Звёзды (справа налево) ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="600s" repeatCount="indefinite"/>
+    <g opacity="0.8">
+      <circle cx="100" cy="80" r="1.5" fill="white"><animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/></circle>
+      <circle cx="250" cy="120" r="1" fill="white"><animate attributeName="opacity" values="1;0.3;1" dur="3s" repeatCount="indefinite"/></circle>
+      <circle cx="600" cy="60" r="1.5" fill="white"><animate attributeName="opacity" values="0.5;1;0.5" dur="2.5s" repeatCount="indefinite"/></circle>
+      <circle cx="700" cy="150" r="1" fill="white"><animate attributeName="opacity" values="1;0.4;1" dur="1.8s" repeatCount="indefinite"/></circle>
+      <circle cx="450" cy="40" r="1.2" fill="white"><animate attributeName="opacity" values="0.3;0.9;0.3" dur="3.5s" repeatCount="indefinite"/></circle>
+      <circle cx="950" cy="100" r="1.2" fill="white"><animate attributeName="opacity" values="0.5;1;0.5" dur="3.2s" repeatCount="indefinite"/></circle>
+      <circle cx="1200" cy="180" r="1" fill="white"><animate attributeName="opacity" values="0.3;0.8;0.3" dur="2.7s" repeatCount="indefinite"/></circle>
+      <circle cx="1400" cy="90" r="1.4" fill="white"><animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite"/></circle>
+    </g>
+    <g opacity="0.8" transform="translate(1600,0)">
+      <circle cx="100" cy="80" r="1.5" fill="white"/>
+      <circle cx="600" cy="60" r="1.5" fill="white"/>
+      <circle cx="1200" cy="180" r="1" fill="white"/>
+      <circle cx="1400" cy="90" r="1.4" fill="white"/>
+    </g>
+  </g>
+
+  <!-- ═══ Луна ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="900s" repeatCount="indefinite"/>
+    <g transform="translate(1300, 130)">
+      <circle cx="0" cy="0" r="100" fill="url(#moonGlow)"/>
+      <circle cx="0" cy="0" r="55" fill="#f0e8d0" opacity="0.9"/>
+      <circle cx="15" cy="-5" r="52" fill="#0a0a1a"/>
+      <circle cx="1600" cy="0" r="100" fill="url(#moonGlow)"/>
+      <circle cx="1600" cy="0" r="55" fill="#f0e8d0" opacity="0.9"/>
+      <circle cx="1615" cy="-5" r="52" fill="#0a0a1a"/>
+    </g>
+  </g>
+
+  <!-- ═══ Дальние горы (справа налево) ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="180s" repeatCount="indefinite"/>
+    <g fill="url(#farMountains)">
+      <path d="M0 620 L80 480 L160 550 L240 450 L340 570 L420 490 L520 590 L600 520 L700 610 L780 530 L880 600 L960 490 L1060 580 L1140 510 L1240 600 L1320 520 L1420 590 L1500 500 L1600 580 L1600 900 L0 900 Z"/>
+    </g>
+    <g fill="url(#farMountains)" transform="translate(1600,0)">
+      <path d="M0 620 L80 480 L160 550 L240 450 L340 570 L420 490 L520 590 L600 520 L700 610 L780 530 L880 600 L960 490 L1060 580 L1140 510 L1240 600 L1320 520 L1420 590 L1500 500 L1600 580 L1600 900 L0 900 Z"/>
+    </g>
+  </g>
+
+  <!-- ═══ Средние горы ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="90s" repeatCount="indefinite"/>
+    <g fill="url(#midMountains)">
+      <path d="M0 750 L120 580 L200 660 L320 550 L460 700 L560 600 L680 730 L800 620 L940 720 L1040 620 L1180 740 L1300 630 L1420 720 L1520 620 L1600 700 L1600 900 L0 900 Z"/>
+    </g>
+    <g fill="url(#midMountains)" transform="translate(1600,0)">
+      <path d="M0 750 L120 580 L200 660 L320 550 L460 700 L560 600 L680 730 L800 620 L940 720 L1040 620 L1180 740 L1300 630 L1420 720 L1520 620 L1600 700 L1600 900 L0 900 Z"/>
+    </g>
+  </g>
+
+  <!-- ═══ Облака ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="45s" repeatCount="indefinite"/>
+    <use href="#cloud" x="200" y="280"/>
+    <use href="#cloud" x="700" y="380"/>
+    <use href="#cloud" x="1100" y="220"/>
+    <use href="#cloud" x="1500" y="450"/>
+    <use href="#cloud" x="1800" y="300"/>
+    <use href="#cloud" x="2300" y="400"/>
+    <use href="#cloud" x="2700" y="250"/>
+    <use href="#cloud" x="3100" y="420"/>
+  </g>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- ДРАКОН: два вложенных <g>.                               -->
+  <!-- Внешний — позиция. Средний — анимация парения (additive). -->
+  <!-- Внутренний — scale(-1, 1), чтобы голова смотрела вправо.  -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <g transform="translate(850, 380)">
+    <g>
+      <animateTransform attributeName="transform" type="translate"
+        values="0 0; 0 -20; 0 0" dur="4s" repeatCount="indefinite"/>
+      <g transform="scale(-1, 1)">
+        <use href="#dragon"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- ═══ Птицы ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="25s" repeatCount="indefinite"/>
+    <use href="#bird" x="400" y="250"/>
+    <use href="#bird" x="450" y="280"/>
+    <use href="#bird" x="1200" y="180"/>
+    <use href="#bird" x="2000" y="270"/>
+  </g>
+
+  <!-- ═══ Ближние горы ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="50s" repeatCount="indefinite"/>
+    <g fill="url(#nearMountains)">
+      <path d="M0 900 L100 780 L180 830 L280 760 L380 850 L480 790 L600 870 L700 800 L820 880 L940 810 L1060 890 L1180 820 L1300 890 L1420 830 L1600 900 Z"/>
+    </g>
+    <g fill="url(#nearMountains)" transform="translate(1600,0)">
+      <path d="M0 900 L100 780 L180 830 L280 760 L380 850 L480 790 L600 870 L700 800 L820 880 L940 810 L1060 890 L1180 820 L1300 890 L1420 830 L1600 900 Z"/>
+    </g>
+  </g>
+
+  <!-- ═══ Туман ═══ -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0;-1600 0" dur="120s" repeatCount="indefinite"/>
+    <ellipse cx="300" cy="870" rx="400" ry="80" fill="#2a1a4e" opacity="0.4" filter="url(#cloudBlur)"/>
+    <ellipse cx="900" cy="880" rx="500" ry="90" fill="#3a2a5e" opacity="0.35" filter="url(#cloudBlur)"/>
+    <ellipse cx="1500" cy="870" rx="450" ry="85" fill="#2a1a4e" opacity="0.4" filter="url(#cloudBlur)"/>
+    <ellipse cx="2100" cy="880" rx="500" ry="90" fill="#3a2a5e" opacity="0.35" filter="url(#cloudBlur)"/>
+  </g>
+</svg>
