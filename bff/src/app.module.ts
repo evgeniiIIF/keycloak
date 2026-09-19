@@ -5,8 +5,8 @@ import { TerminusModule } from '@nestjs/terminus';
 import { RedisModule } from '@/infra/redis/redis.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { AuthGuard } from '@/modules/auth/guards/auth.guard';
-import { SessionModule } from '@/modules/auth/sessions/session.module';
 import { GatewayModule } from '@/modules/gateway/gateway.module';
+import { SessionModule } from '@/modules/sessions/session.module';
 import { HealthController } from '@/shared/controllers/health.controller';
 import { SharedModule } from '@/shared/shared.module';
 

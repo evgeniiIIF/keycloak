@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { RedisModule } from '@/infra/redis/redis.module';
-import { SessionModule } from '@/modules/auth/sessions/session.module';
+import { SessionModule } from '@/modules/sessions/session.module';
 
 import { AuthController } from './controllers/auth.controller';
 import { BackchannelController } from './controllers/backchannel.controller';

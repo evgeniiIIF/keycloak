@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '@/modules/auth/auth.module';
-import { SessionModule } from '@/modules/auth/sessions/session.module';
+import { SessionModule } from '@/modules/sessions/session.module';
 
 import { GatewayController } from './controllers/gateway.controller';
 import { AxiosHttpClient } from './services/axios-http-client.service';

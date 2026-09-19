@@ -4,10 +4,10 @@ import axios, { AxiosError,AxiosInstance, InternalAxiosRequestConfig } from 'axi
 import { Request } from 'express';
 
 import { AuthService } from '@/modules/auth/services/auth.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
-import { TokenRefreshLock } from '@/modules/auth/sessions/services/token-refresh-lock.service';
 import { KeycloakErrorBody } from '@/modules/auth/types/keycloak';
 import { Session } from '@/modules/auth/types/session';
+import { SessionService } from '@/modules/sessions/services/session.service';
+import { TokenRefreshLock } from '@/modules/sessions/services/token-refresh-lock.service';
 import { Logger } from '@/shared/logger/logger';
 
 // Расширяем стандартный конфиг Axios для поддержки флага ретрая
