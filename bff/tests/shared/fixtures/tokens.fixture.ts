@@ -1,8 +1,8 @@
 import { SignJWT } from 'jose';
 
-import { KeycloakJwtPayload,TokenSet } from '@/modules/auth/types/keycloak';
+import { KeycloakJwtPayload, TokenSet } from '@/modules/auth/types/keycloak';
 
-const secret = new TextEncoder().encode('test-secret-key-for-jwt-signing');
+import { TEST_JWT_AUDIENCE, TEST_JWT_ISSUER, TEST_JWT_KEY } from './jwt-keys';
 
 async function createTestIdToken(): Promise<string> {
   return new SignJWT({
@@ -14,11 +14,11 @@ async function createTestIdToken(): Promise<string> {
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject('6a1e0d1a-2461-403f-bd11-d79c7efb3ebd')
-    .setIssuer('http://localhost:8080/realms/TestRealm')
-    .setAudience('bff-client')
+    .setIssuer(TEST_JWT_ISSUER)
+    .setAudience(TEST_JWT_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime('1h')
-    .sign(secret);
+    .sign(TEST_JWT_KEY);
 }
 
 export const validTokenSet: TokenSet = {

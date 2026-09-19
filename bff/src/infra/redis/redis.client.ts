@@ -101,6 +101,14 @@ export class RedisClient implements OnModuleInit, OnModuleDestroy {
     await multi.exec();
   }
 
+  // ── Test helpers ───────────────────────────────────────────────
+
+  // Очистить всю базу. ТОЛЬКО для интеграционных тестов и локальной отладки.
+  // В проде не вызывать — снесёт все сессии разом.
+  async flushAll(): Promise<void> {
+    await this.client.flushAll();
+  }
+
   // ── Health ─────────────────────────────────────────────────────
 
   isReady(): boolean {

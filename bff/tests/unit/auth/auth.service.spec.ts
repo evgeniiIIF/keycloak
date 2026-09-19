@@ -1,47 +1,53 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
 import { initFixtures, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 
-import { RedisService } from '@/infra/redis/services/redis.service';
 import { AuthService } from '@/modules/auth/services/auth.service';
+import { JwksService } from '@/modules/auth/services/jwks.service';
 import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { OAuthStateRepository } from '@/modules/auth/storage/oauth-state.repository';
+import { Session } from '@/modules/auth/types/session';
+import { SessionService } from '@/modules/sessions/services/session.service';
 
 describe('AuthService (unit)', () => {
   let authService: AuthService;
-  let redisServiceMock: jest.Mocked<RedisService>;
-  let sessionServiceMock: jest.Mocked<SessionService>;
-  let keycloakClientMock: jest.Mocked<KeycloakClient>;
+  let oauthState: jest.Mocked<OAuthStateRepository>;
+  let sessionService: jest.Mocked<SessionService>;
+  let keycloak: jest.Mocked<KeycloakClient>;
 
   beforeEach(async () => {
-    // Инициализируем валидный id_token
     await initFixtures();
 
-    // Создаём моки для всех зависимостей
-    redisServiceMock = {
-      setOAuthState: jest.fn(),
-      getOAuthState: jest.fn(),
-      deleteOAuthState: jest.fn(),
-    } as unknown as jest.Mocked<RedisService>;
+    oauthState = {
+      save: jest.fn(),
+      find: jest.fn(),
+      delete: jest.fn(),
+    } as unknown as jest.Mocked<OAuthStateRepository>;
 
-    sessionServiceMock = {
+    sessionService = {
       create: jest.fn(),
       updateTokens: jest.fn(),
       destroy: jest.fn(),
     } as unknown as jest.Mocked<SessionService>;
 
-    keycloakClientMock = {
+    keycloak = {
       exchangeCode: jest.fn(),
       refreshTokens: jest.fn(),
       revokeRefreshToken: jest.fn(),
     } as unknown as jest.Mocked<KeycloakClient>;
 
+    const jwks = {
+      getJWKS: jest.fn().mockReturnValue(TEST_JWT_KEY),
+    } as unknown as jest.Mocked<JwksService>;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: RedisService, useValue: redisServiceMock },
-        { provide: SessionService, useValue: sessionServiceMock },
-        { provide: KeycloakClient, useValue: keycloakClientMock },
+        { provide: OAuthStateRepository, useValue: oauthState },
+        { provide: SessionService, useValue: sessionService },
+        { provide: KeycloakClient, useValue: keycloak },
+        { provide: JwksService, useValue: jwks },
       ],
     }).compile();
 
@@ -49,7 +55,7 @@ describe('AuthService (unit)', () => {
   });
 
   describe('buildAuthorizationUrl', () => {
-    it('генерирует PKCE-пару и сохраняет verifier в Redis', async () => {
+    it('генерирует PKCE-пару, state и сохраняет verifier', async () => {
       const url = await authService.buildAuthorizationUrl();
       const parsed = new URL(url);
 
@@ -57,47 +63,46 @@ describe('AuthService (unit)', () => {
       expect(parsed.searchParams.get('response_type')).toBe('code');
       expect(parsed.searchParams.get('client_id')).toBe('bff-client');
       expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
-
-      expect(redisServiceMock.setOAuthState).toHaveBeenCalled();
+      expect(parsed.searchParams.get('code_challenge')).toBeTruthy();
 
       const state = parsed.searchParams.get('state');
       expect(state).toBeTruthy();
-      expect(redisServiceMock.setOAuthState).toHaveBeenCalledWith(state, expect.any(String));
+      expect(oauthState.save).toHaveBeenCalledWith(state, expect.any(String));
     });
   });
 
   describe('exchangeCode', () => {
-    const session = {
+    const session: Session = {
       id: 'session-123',
       user: { id: 'user-123', username: 'testuser', email: 'test@example.com', roles: [] },
       tokens: { accessToken: 'access', refreshToken: 'refresh', idToken: 'id' },
       csrfToken: 'csrf-token-123',
     };
 
-    it('успешно обменивает code, создаёт сессию и удаляет state', async () => {
-      redisServiceMock.getOAuthState.mockResolvedValue('verifier-123');
-      keycloakClientMock.exchangeCode.mockResolvedValue(validTokenSet);
-      sessionServiceMock.create.mockResolvedValue(session);
+    it('обменивает code, создаёт сессию и удаляет state', async () => {
+      oauthState.find.mockResolvedValue('verifier-123');
+      keycloak.exchangeCode.mockResolvedValue(validTokenSet);
+      sessionService.create.mockResolvedValue(session);
 
       const result = await authService.exchangeCode('code-123', 'state-123');
 
       expect(result).toBe(session);
-      expect(redisServiceMock.getOAuthState).toHaveBeenCalledWith('state-123');
-      expect(keycloakClientMock.exchangeCode).toHaveBeenCalledWith('code-123', 'verifier-123');
-      expect(sessionServiceMock.create).toHaveBeenCalled();
-      expect(redisServiceMock.deleteOAuthState).toHaveBeenCalledWith('state-123');
+      expect(oauthState.find).toHaveBeenCalledWith('state-123');
+      expect(keycloak.exchangeCode).toHaveBeenCalledWith('code-123', 'verifier-123');
+      expect(sessionService.create).toHaveBeenCalled();
+      expect(oauthState.delete).toHaveBeenCalledWith('state-123');
     });
 
     it('бросает BadRequestException, если state не найден', async () => {
-      redisServiceMock.getOAuthState.mockResolvedValue(null);
+      oauthState.find.mockResolvedValue(null);
 
       await expect(authService.exchangeCode('code', 'state'))
         .rejects.toThrow(BadRequestException);
     });
 
     it('пробрасывает ошибку от KeycloakClient', async () => {
-      redisServiceMock.getOAuthState.mockResolvedValue('verifier');
-      keycloakClientMock.exchangeCode.mockRejectedValue(new Error('Keycloak error'));
+      oauthState.find.mockResolvedValue('verifier');
+      keycloak.exchangeCode.mockRejectedValue(new Error('Keycloak error'));
 
       await expect(authService.exchangeCode('code', 'state'))
         .rejects.toThrow('Keycloak error');
@@ -105,73 +110,85 @@ describe('AuthService (unit)', () => {
   });
 
   describe('refreshTokens', () => {
-    const currentTokens = {
-      accessToken: 'old-access',
-      refreshToken: 'old-refresh',
-      idToken: 'old-id',
-    };
+    const currentTokens = { accessToken: 'old-a', refreshToken: 'old-r', idToken: 'old-i' };
 
-    const newTokenSet = {
-      access_token: 'new-access',
-      refresh_token: 'new-refresh',
-      id_token: 'new-id',
-    };
-
-    it('обновляет токены через Keycloak и сохраняет в сессии', async () => {
-      keycloakClientMock.refreshTokens.mockResolvedValue(newTokenSet);
-
-      const newTokens = await authService.refreshTokens('session-123', currentTokens);
-
-      expect(keycloakClientMock.refreshTokens).toHaveBeenCalledWith('old-refresh');
-      expect(sessionServiceMock.updateTokens).toHaveBeenCalledWith('session-123', {
-        accessToken: 'new-access',
-        refreshToken: 'new-refresh',
-        idToken: 'new-id',
+    it('обновляет токены и сохраняет в сессии', async () => {
+      keycloak.refreshTokens.mockResolvedValue({
+        access_token: 'new-a', refresh_token: 'new-r', id_token: 'new-i',
       });
-      expect(newTokens.accessToken).toBe('new-access');
-      expect(newTokens.refreshToken).toBe('new-refresh');
+
+      const result = await authService.refreshTokens('session-123', currentTokens);
+
+      expect(keycloak.refreshTokens).toHaveBeenCalledWith('old-r');
+      expect(sessionService.updateTokens).toHaveBeenCalledWith('session-123', {
+        accessToken: 'new-a', refreshToken: 'new-r', idToken: 'new-i',
+      });
+      expect(result.accessToken).toBe('new-a');
     });
 
     it('использует старый refresh token, если Keycloak не вернул новый', async () => {
-      keycloakClientMock.refreshTokens.mockResolvedValue({
-        access_token: 'new-access',
-        refresh_token: '',
-        id_token: 'new-id',
+      keycloak.refreshTokens.mockResolvedValue({
+        access_token: 'new-a', refresh_token: '', id_token: 'new-i',
       });
 
-      const newTokens = await authService.refreshTokens('session-123', currentTokens);
+      const result = await authService.refreshTokens('session-123', currentTokens);
 
-      expect(newTokens.refreshToken).toBe('old-refresh');
+      expect(result.refreshToken).toBe('old-r');
     });
   });
 
   describe('logout', () => {
-    const session = {
+    const session: Session = {
       id: 'session-123',
       user: { id: 'user-123', username: 'testuser', email: 'test@example.com', roles: [] },
-      tokens: { accessToken: 'access', refreshToken: 'refresh', idToken: 'id-token' },
-      csrfToken: 'csrf-token-123',
+      tokens: { accessToken: 'a', refreshToken: 'r', idToken: 'id-token' },
+      csrfToken: 'csrf',
     };
 
-    it('удаляет сессию, отзывает refresh token и возвращает URL', async () => {
-      sessionServiceMock.destroy.mockResolvedValue(undefined);
-      keycloakClientMock.revokeRefreshToken.mockResolvedValue(undefined);
+    it('удаляет сессию, отзывает refresh и возвращает URL выхода', async () => {
+      sessionService.destroy.mockResolvedValue(undefined);
+      keycloak.revokeRefreshToken.mockResolvedValue(undefined);
 
       const logoutUrl = await authService.logout(session);
 
-      expect(sessionServiceMock.destroy).toHaveBeenCalledWith('session-123', 'user-123');
-      expect(keycloakClientMock.revokeRefreshToken).toHaveBeenCalledWith('refresh');
+      expect(sessionService.destroy).toHaveBeenCalledWith('session-123', 'user-123');
+      expect(keycloak.revokeRefreshToken).toHaveBeenCalledWith('r');
       expect(logoutUrl).toContain('id_token_hint=id-token');
       expect(logoutUrl).toContain('post_logout_redirect_uri');
     });
 
-    it('не бросает ошибку, если отзыв refresh token не удался', async () => {
-      sessionServiceMock.destroy.mockResolvedValue(undefined);
-      keycloakClientMock.revokeRefreshToken.mockRejectedValue(new Error('Revoke failed'));
+    it('не бросает, если отзыв refresh token упал', async () => {
+      sessionService.destroy.mockResolvedValue(undefined);
+      keycloak.revokeRefreshToken.mockRejectedValue(new Error('Revoke failed'));
 
-      const logoutUrl = await authService.logout(session);
+      await expect(authService.logout(session)).resolves.toContain('id_token_hint=id-token');
+    });
 
-      expect(logoutUrl).toContain('id_token_hint=id-token');
+    it('не бросает, если удаление сессии упало', async () => {
+      sessionService.destroy.mockRejectedValue(new Error('Destroy failed'));
+      keycloak.revokeRefreshToken.mockResolvedValue(undefined);
+
+      await expect(authService.logout(session)).resolves.toContain('id_token_hint=id-token');
+    });
+  });
+
+  describe('validateCsrfToken', () => {
+    const session = { csrfToken: 'a'.repeat(64) } as Session;
+
+    it('возвращает true для совпадающих токенов', () => {
+      expect(authService.validateCsrfToken(session, 'a'.repeat(64))).toBe(true);
+    });
+
+    it('возвращает false для несовпадающих', () => {
+      expect(authService.validateCsrfToken(session, 'b'.repeat(64))).toBe(false);
+    });
+
+    it('возвращает false для undefined', () => {
+      expect(authService.validateCsrfToken(session, undefined)).toBe(false);
+    });
+
+    it('возвращает false для разной длины', () => {
+      expect(authService.validateCsrfToken(session, 'short')).toBe(false);
     });
   });
 });

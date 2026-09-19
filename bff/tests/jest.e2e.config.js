@@ -1,14 +1,11 @@
+const shared = require('./jest.shared');
+
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  moduleFileExtensions: ['js', 'json', 'ts'],
+  ...shared,
   rootDir: '..',
   testRegex: 'tests/e2e/.*\\.e2e\\.spec\\.ts$',
-  transform: {
-    '^.+\\.ts$': ['ts-jest', {
-      tsconfig: '<rootDir>/tsconfig.spec.json',
-    }],
-  },
-  testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/tests/shared/setup/silence-logger.ts'],
   testTimeout: 60000,
   maxWorkers: 1,
 };

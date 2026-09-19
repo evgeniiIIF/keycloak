@@ -1,90 +1,96 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
+import { SignJWT } from 'jose';
 
-import { RedisService } from '@/infra/redis/services/redis.service';
+import { config } from '@/config/config';
+import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
+import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
+import { SessionService } from '@/modules/sessions/services/session.service';
 
-describe('BackchannelService (integration)', () => {
-  let backchannelService: BackchannelService;
-  let redisService: RedisService;
+const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
+
+describe('BackchannelService (integration, real Redis)', () => {
+  let redis: RedisClient;
+  let backchannel: BackchannelService;
   let sessionService: SessionService;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
-        RedisService,
+        RedisClient,
+        SessionRepository,
+        UserSessionsRepository,
         SessionService,
-        JwksService,
         BackchannelService,
+        { provide: JwksService, useValue: { getJWKS: () => TEST_JWT_KEY } },
       ],
     }).compile();
 
-    redisService = moduleRef.get(RedisService);
+    redis = moduleRef.get(RedisClient);
     sessionService = moduleRef.get(SessionService);
-    backchannelService = moduleRef.get(BackchannelService);
+    backchannel = moduleRef.get(BackchannelService);
 
-    await redisService.onModuleInit();
+    await redis.onModuleInit();
   });
 
   afterAll(async () => {
-    await redisService.onModuleDestroy();
+    await redis.onModuleDestroy();
   });
 
   beforeEach(async () => {
-    await redisService.client.flushAll();
+    await redis.flushAll();
   });
 
-  it('replay protection работает с реальным Redis', async () => {
-    // Мокаем verifyLogoutToken — это unit-задача
-    (backchannelService as unknown as { verifyLogoutToken: jest.Mock }).verifyLogoutToken = jest.fn().mockResolvedValue({
-      sub: 'user-123',
-      jti: 'integration-jti-123',
-      events: {
-        'http://schemas.openid.net/event/backchannel-logout': {},
-      },
-    });
+  it('replay-защита работает с реальным Redis', async () => {
+    const token = await signLogoutToken({ sub: 'user-1', jti: 'jti-integration-1' });
 
-    // Первый вызов — успех
-    await backchannelService.handleBackchannelLogout('token');
+    await backchannel.handleBackchannelLogout(token);
 
-    // Проверяем, что jti сохранён в реальном Redis
-    const exists = await redisService.client.exists('replay:integration-jti-123');
-    expect(exists).toBe(1);
+    expect(await redis.exists('replay:jti-integration-1')).toBe(true);
 
-    // Второй вызов — replay detected
-    await expect(backchannelService.handleBackchannelLogout('token'))
+    await expect(backchannel.handleBackchannelLogout(token))
       .rejects.toThrow('Replay detected');
   });
 
-  it('destroyAllSessions удаляет все сессии пользователя из реального Redis', async () => {
-    // Создаём две сессии для пользователя
-    const tokens = {
-      access_token: 'access',
-      refresh_token: 'refresh',
-      id_token: 'id',
-    };
-    const idPayload = {
-      sub: 'integration-user-123',
+  it('destroyAllSessions удаляет все сессии пользователя', async () => {
+    const payload = {
+      sub: 'integration-user-1',
       email: 'test@example.com',
       preferred_username: 'testuser',
       name: 'Test User',
       realm_access: { roles: ['user'] },
       resource_access: {},
     };
+    const tokens = { access_token: 'a', refresh_token: 'r', id_token: 'i' };
 
-    const session1 = await sessionService.create(idPayload, tokens, idPayload.sub);
-    const session2 = await sessionService.create(idPayload, tokens, idPayload.sub);
+    const s1 = await sessionService.create(payload, tokens, payload.sub);
+    const s2 = await sessionService.create(payload, tokens, payload.sub);
 
-    // Убеждаемся, что сессии существуют
-    expect(await sessionService.get(session1.id)).toBeDefined();
-    expect(await sessionService.get(session2.id)).toBeDefined();
+    expect(await sessionService.get(s1.id)).toBeDefined();
+    expect(await sessionService.get(s2.id)).toBeDefined();
 
-    // Вызываем destroyAllSessions
-    await sessionService.destroyAllSessions(idPayload.sub);
+    await sessionService.destroyAllSessions(payload.sub);
 
-    // Проверяем, что обе сессии удалены
-    expect(await sessionService.get(session1.id)).toBeNull();
-    expect(await sessionService.get(session2.id)).toBeNull();
+    expect(await sessionService.get(s1.id)).toBeNull();
+    expect(await sessionService.get(s2.id)).toBeNull();
   });
 });
+
+// Подписываем logout token тем же issuer/audience, который проверяет BackchannelService.
+// В integration issuer приходит от testcontainers (localhost:<mapped>), а не из .env.
+async function signLogoutToken(claims: { sub?: string; jti?: string }): Promise<string> {
+  const payload: Record<string, unknown> = { events: { [BACKCHANNEL_EVENT]: {} } };
+  if (claims.sub) payload.sub = claims.sub;
+  if (claims.jti) payload.jti = claims.jti;
+
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(config.keycloak.publicIssuer)
+    .setAudience(config.keycloak.clientId)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(TEST_JWT_KEY);
+}

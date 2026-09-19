@@ -1,41 +1,39 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { RedisService } from '@/infra/redis/services/redis.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
 import { KeycloakJwtPayload, TokenSet } from '@/modules/auth/types/keycloak';
+import { Session } from '@/modules/auth/types/session';
+import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
+import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
+import { SessionService } from '@/modules/sessions/services/session.service';
 
 describe('SessionService (unit)', () => {
   let sessionService: SessionService;
-  let redisClientMock: {
-    get: jest.Mock;
-    set: jest.Mock;
-    del: jest.Mock;
-    eval: jest.Mock;
-  };
-  let redisServiceMock: jest.Mocked<RedisService>;
+  let sessions: jest.Mocked<SessionRepository>;
+  let userSessions: jest.Mocked<UserSessionsRepository>;
 
   beforeEach(async () => {
-    redisClientMock = {
-      get: jest.fn(),
-      set: jest.fn(),
-      del: jest.fn(),
-      eval: jest.fn(),
-    };
+    sessions = {
+      save: jest.fn(),
+      find: jest.fn(),
+      updateTokens: jest.fn(),
+      touch: jest.fn(),
+      delete: jest.fn(),
+    } as unknown as jest.Mocked<SessionRepository>;
 
-    redisServiceMock = {
-      client: redisClientMock,
-      addUserSession: jest.fn(),
-      removeUserSession: jest.fn(),
-      deleteUserSessions: jest.fn(),
-      refreshSessionStoreTtl: jest.fn(),
-      refreshUserSessionTtl: jest.fn(),
-    } as unknown as jest.Mocked<RedisService>;
+    userSessions = {
+      add: jest.fn(),
+      remove: jest.fn(),
+      findAll: jest.fn(),
+      touch: jest.fn(),
+      deleteIndex: jest.fn(),
+    } as unknown as jest.Mocked<UserSessionsRepository>;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
-        { provide: RedisService, useValue: redisServiceMock },
+        { provide: SessionRepository, useValue: sessions },
+        { provide: UserSessionsRepository, useValue: userSessions },
       ],
     }).compile();
 
@@ -48,7 +46,7 @@ describe('SessionService (unit)', () => {
     preferred_username: 'testuser',
     name: 'Test User',
     realm_access: { roles: ['user'] },
-    resource_access: {},
+    resource_access: { 'bff-client': { roles: ['admin'] } },
   };
 
   const tokenSet: TokenSet = {
@@ -58,105 +56,94 @@ describe('SessionService (unit)', () => {
   };
 
   describe('create', () => {
-    it('создаёт сессию, сохраняет в Redis и связывает с пользователем', async () => {
-      redisClientMock.set.mockResolvedValue('OK');
-      redisServiceMock.addUserSession.mockResolvedValue(undefined);
-
+    it('собирает сессию, сохраняет её и индексирует по пользователю', async () => {
       const session = await sessionService.create(idPayload, tokenSet, 'user-123');
 
       expect(session.id).toBeDefined();
       expect(session.user.id).toBe('user-123');
       expect(session.user.username).toBe('testuser');
+      expect(session.user.roles).toEqual(['user', 'admin']);
       expect(session.tokens.accessToken).toBe('access');
+      expect(session.csrfToken).toHaveLength(64);
 
-      expect(redisClientMock.set).toHaveBeenCalled();
-      expect(redisServiceMock.addUserSession).toHaveBeenCalledWith('user-123', session.id);
+      expect(sessions.save).toHaveBeenCalledWith(session);
+      expect(userSessions.add).toHaveBeenCalledWith('user-123', session.id);
     });
   });
 
   describe('get', () => {
-    it('возвращает сессию, если она существует в Redis', async () => {
-      const session = {
-        id: 'session-1',
-        user: { id: 'user-123', username: 'testuser', email: 'test@example.com', roles: [] },
-        tokens: { accessToken: 'access', refreshToken: 'refresh', idToken: 'id' },
-      };
-      redisClientMock.get.mockResolvedValue(JSON.stringify(session));
+    it('делегирует в SessionRepository.find', async () => {
+      const session = { id: 'sess-1' } as Session;
+      sessions.find.mockResolvedValue(session);
 
-      const result = await sessionService.get('session-1');
+      const result = await sessionService.get('sess-1');
 
-      expect(result).toEqual(session);
+      expect(result).toBe(session);
+      expect(sessions.find).toHaveBeenCalledWith('sess-1');
     });
 
-    it('возвращает null, если сессии нет в Redis', async () => {
-      redisClientMock.get.mockResolvedValue(null);
+    it('возвращает null, если репозиторий вернул null', async () => {
+      sessions.find.mockResolvedValue(null);
 
-      const result = await sessionService.get('nonexistent');
-
-      expect(result).toBeNull();
-    });
-
-    it('возвращает null, если JSON повреждён', async () => {
-      redisClientMock.get.mockResolvedValue('invalid-json');
-
-      const result = await sessionService.get('session-1');
-
-      expect(result).toBeNull();
+      expect(await sessionService.get('missing')).toBeNull();
     });
   });
 
   describe('updateTokens', () => {
-    it('вызывает Lua-скрипт для атомарного обновления токенов', async () => {
-      redisClientMock.eval.mockResolvedValue(1);
+    const newTokens = { accessToken: 'a2', refreshToken: 'r2', idToken: 'i2' };
 
-      const newTokens = { accessToken: 'new-access', refreshToken: 'new-refresh', idToken: 'new-id' };
+    it('обновляет токены, если репозиторий вернул true', async () => {
+      sessions.updateTokens.mockResolvedValue(true);
 
-      await sessionService.updateTokens('session-1', newTokens);
+      await sessionService.updateTokens('sess-1', newTokens);
 
-      expect(redisClientMock.eval).toHaveBeenCalled();
+      expect(sessions.updateTokens).toHaveBeenCalledWith('sess-1', newTokens);
     });
 
-    it('бросает UnauthorizedException, если сессия не найдена', async () => {
-      redisClientMock.eval.mockResolvedValue(null);
+    it('бросает UnauthorizedException, если сессия исчезла', async () => {
+      sessions.updateTokens.mockResolvedValue(false);
 
-      const newTokens = { accessToken: 'new-access', refreshToken: 'new-refresh', idToken: 'new-id' };
-
-      await expect(sessionService.updateTokens('nonexistent', newTokens))
+      await expect(sessionService.updateTokens('sess-1', newTokens))
         .rejects.toThrow(UnauthorizedException);
     });
   });
 
+  describe('touch', () => {
+    it('продлевает TTL сессии и индекса пользователя', async () => {
+      await sessionService.touch('sess-1', 'user-123');
+
+      expect(sessions.touch).toHaveBeenCalledWith('sess-1');
+      expect(userSessions.touch).toHaveBeenCalledWith('user-123');
+    });
+  });
+
   describe('destroy', () => {
-    it('удаляет сессию и связь с пользователем', async () => {
-      redisClientMock.del.mockResolvedValue(1);
-      redisServiceMock.removeUserSession.mockResolvedValue(undefined);
+    it('удаляет сессию и убирает её из индекса пользователя', async () => {
+      await sessionService.destroy('sess-1', 'user-123');
 
-      await sessionService.destroy('session-1', 'user-123');
-
-      expect(redisClientMock.del).toHaveBeenCalled();
-      expect(redisServiceMock.removeUserSession).toHaveBeenCalledWith('user-123', 'session-1');
+      expect(sessions.delete).toHaveBeenCalledWith('sess-1');
+      expect(userSessions.remove).toHaveBeenCalledWith('user-123', 'sess-1');
     });
   });
 
   describe('destroyAllSessions', () => {
-    it('удаляет все сессии пользователя', async () => {
-      redisServiceMock.deleteUserSessions.mockResolvedValue(undefined);
+    it('удаляет все сессии пользователя и его индекс', async () => {
+      userSessions.findAll.mockResolvedValue(['s1', 's2']);
 
       await sessionService.destroyAllSessions('user-123');
 
-      expect(redisServiceMock.deleteUserSessions).toHaveBeenCalledWith('user-123');
+      expect(sessions.delete).toHaveBeenCalledWith('s1');
+      expect(sessions.delete).toHaveBeenCalledWith('s2');
+      expect(userSessions.deleteIndex).toHaveBeenCalledWith('user-123');
     });
-  });
 
-  describe('touch', () => {
-    it('продлевает TTL сессии и связи с пользователем', async () => {
-      redisServiceMock.refreshSessionStoreTtl.mockResolvedValue(undefined);
-      redisServiceMock.refreshUserSessionTtl.mockResolvedValue(undefined);
+    it('работает, если у пользователя нет сессий', async () => {
+      userSessions.findAll.mockResolvedValue([]);
 
-      await sessionService.touch('session-1', 'user-123');
+      await sessionService.destroyAllSessions('user-123');
 
-      expect(redisServiceMock.refreshSessionStoreTtl).toHaveBeenCalledWith('session-1');
-      expect(redisServiceMock.refreshUserSessionTtl).toHaveBeenCalledWith('user-123');
+      expect(sessions.delete).not.toHaveBeenCalled();
+      expect(userSessions.deleteIndex).toHaveBeenCalledWith('user-123');
     });
   });
 });

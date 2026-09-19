@@ -8,9 +8,9 @@ import { SessionService } from '@/modules/sessions/services/session.service';
 import { Logger } from '@/shared/logger/logger';
 import { errorMessage } from '@/shared/utils/utils';
 
+import { OAuthStateRepository } from '../storage/oauth-state.repository';
 import { KeycloakJwtPayload } from '../types/keycloak';
 import type { Session, SessionTokens } from '../types/session';
-import { OAuthStateRepository } from '../storage/oauth-state.repository';
 import { KeycloakClient } from './keycloak.service';
 
 // OAuth 2.0 Authorization Code Flow с PKCE.

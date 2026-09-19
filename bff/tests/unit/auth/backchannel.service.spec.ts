@@ -1,134 +1,113 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_JWT_AUDIENCE, TEST_JWT_ISSUER, TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
+import { SignJWT } from 'jose';
 
-import { RedisService } from '@/infra/redis/services/redis.service';
+import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { SessionService } from '@/modules/sessions/services/session.service';
 
-interface MockPayload {
-  sub?: string;
-  jti?: string;
-  events?: Record<string, unknown>;
-}
+const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
 describe('BackchannelService (unit)', () => {
-  let backchannelService: BackchannelService;
-  let jwksServiceMock: jest.Mocked<JwksService>;
-  let redisServiceMock: jest.Mocked<RedisService>;
-  let sessionServiceMock: jest.Mocked<SessionService>;
-
-  // Простые моки для Redis client
-  const existsMock = jest.fn();
-  const setMock = jest.fn();
+  let backchannel: BackchannelService;
+  let redis: { exists: jest.Mock; set: jest.Mock };
+  let sessionService: jest.Mocked<SessionService>;
 
   beforeEach(async () => {
-    jwksServiceMock = {
-      getJWKS: jest.fn().mockReturnValue(jest.fn()),
-    } as unknown as jest.Mocked<JwksService>;
+    redis = { exists: jest.fn(), set: jest.fn() };
 
-    redisServiceMock = {
-      client: {
-        exists: existsMock,
-        set: setMock,
-      },
-    } as unknown as jest.Mocked<RedisService>;
-
-    sessionServiceMock = {
+    sessionService = {
       destroyAllSessions: jest.fn(),
     } as unknown as jest.Mocked<SessionService>;
+
+    const jwks = {
+      getJWKS: jest.fn().mockReturnValue(TEST_JWT_KEY),
+    } as unknown as jest.Mocked<JwksService>;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         BackchannelService,
-        { provide: JwksService, useValue: jwksServiceMock },
-        { provide: RedisService, useValue: redisServiceMock },
-        { provide: SessionService, useValue: sessionServiceMock },
+        { provide: RedisClient, useValue: redis },
+        { provide: SessionService, useValue: sessionService },
+        { provide: JwksService, useValue: jwks },
       ],
     }).compile();
 
-    backchannelService = moduleRef.get(BackchannelService);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    backchannel = moduleRef.get(BackchannelService);
   });
 
   describe('handleBackchannelLogout', () => {
-    it('успешно обрабатывает logout token и удаляет сессии пользователя', async () => {
-      const mockPayload: MockPayload = {
-        sub: 'user-123',
-        jti: 'jti-123',
-        events: {
-          'http://schemas.openid.net/event/backchannel-logout': {},
-        },
-      };
+    it('верифицирует токен, помечает jti и удаляет сессии пользователя', async () => {
+      const token = await signLogoutToken({ sub: 'user-123', jti: 'jti-1' });
+      redis.exists.mockResolvedValue(false);
+      redis.set.mockResolvedValue(undefined);
 
-      (backchannelService as unknown as { verifyLogoutToken: jest.Mock }).verifyLogoutToken = jest.fn().mockResolvedValue(mockPayload);
+      await backchannel.handleBackchannelLogout(token);
 
-      existsMock.mockResolvedValue(0);
-      setMock.mockResolvedValue('OK');
-
-      await backchannelService.handleBackchannelLogout('logout-token');
-
-      expect(existsMock).toHaveBeenCalled();
-      expect(setMock).toHaveBeenCalled();
-      expect(sessionServiceMock.destroyAllSessions).toHaveBeenCalledWith('user-123');
+      expect(redis.exists).toHaveBeenCalledWith('replay:jti-1');
+      expect(redis.set).toHaveBeenCalledWith('replay:jti-1', '1', expect.any(Number));
+      expect(sessionService.destroyAllSessions).toHaveBeenCalledWith('user-123');
     });
 
-    it('бросает UnauthorizedException при replay-атаке', async () => {
-      const mockPayload: MockPayload = {
-        sub: 'user-123',
-        jti: 'jti-123',
-        events: {
-          'http://schemas.openid.net/event/backchannel-logout': {},
-        },
-      };
+    it('бросает UnauthorizedException при replay', async () => {
+      const token = await signLogoutToken({ sub: 'user-123', jti: 'jti-1' });
+      redis.exists.mockResolvedValue(true);
 
-      (backchannelService as unknown as { verifyLogoutToken: jest.Mock }).verifyLogoutToken = jest.fn().mockResolvedValue(mockPayload);
-
-      existsMock.mockResolvedValue(1);
-
-      await expect(backchannelService.handleBackchannelLogout('logout-token'))
+      await expect(backchannel.handleBackchannelLogout(token))
         .rejects.toThrow(UnauthorizedException);
     });
 
-    it('бросает BadRequestException если отсутствует sub', async () => {
-      const mockPayload: MockPayload = {
-        jti: 'jti-123',
-        events: {
-          'http://schemas.openid.net/event/backchannel-logout': {},
-        },
-      };
+    it('бросает BadRequestException, если в токене нет sub', async () => {
+      const token = await signLogoutToken({ jti: 'jti-1' });
+      redis.exists.mockResolvedValue(false);
 
-      (backchannelService as unknown as { verifyLogoutToken: jest.Mock }).verifyLogoutToken = jest.fn().mockResolvedValue(mockPayload);
-
-      existsMock.mockResolvedValue(0);
-
-      await expect(backchannelService.handleBackchannelLogout('logout-token'))
+      await expect(backchannel.handleBackchannelLogout(token))
         .rejects.toThrow(BadRequestException);
     });
-  });
 
-  describe('checkReplay', () => {
-    it('не бросает ошибку, если jti не найден', async () => {
-      existsMock.mockResolvedValue(0);
-      setMock.mockResolvedValue('OK');
+    it('бросает UnauthorizedException, если нет backchannel-события', async () => {
+      const token = await signLogoutToken({ sub: 'user-123' }, { includeEvent: false });
 
-      await (backchannelService as unknown as { checkReplay: jest.Mock }).checkReplay('jti-123');
-
-      expect(setMock).toHaveBeenCalledWith(
-        'replay:jti-123',
-        '1',
-        { EX: 300 },
-      );
+      await expect(backchannel.handleBackchannelLogout(token))
+        .rejects.toThrow(UnauthorizedException);
     });
 
-    it('бросает UnauthorizedException, если jti уже существует', async () => {
-      existsMock.mockResolvedValue(1);
+    it('бросает UnauthorizedException на токен с неправильным issuer', async () => {
+      const token = await signLogoutToken({ sub: 'user-123' }, { issuer: 'http://evil' });
 
-      await expect((backchannelService as unknown as { checkReplay: jest.Mock }).checkReplay('jti-123'))
+      await expect(backchannel.handleBackchannelLogout(token))
         .rejects.toThrow(UnauthorizedException);
+    });
+
+    it('работает без jti — replay-защита пропускается', async () => {
+      const token = await signLogoutToken({ sub: 'user-123' });
+
+      await backchannel.handleBackchannelLogout(token);
+
+      expect(redis.exists).not.toHaveBeenCalled();
+      expect(sessionService.destroyAllSessions).toHaveBeenCalledWith('user-123');
     });
   });
 });
+
+interface LogoutTokenClaims { sub?: string; jti?: string; }
+interface SignOptions { includeEvent?: boolean; issuer?: string; }
+
+async function signLogoutToken(claims: LogoutTokenClaims, options: SignOptions = {}): Promise<string> {
+  const { includeEvent = true, issuer = TEST_JWT_ISSUER } = options;
+
+  const payload: Record<string, unknown> = {};
+  if (claims.sub) payload.sub = claims.sub;
+  if (claims.jti) payload.jti = claims.jti;
+  if (includeEvent) payload.events = { [BACKCHANNEL_EVENT]: {} };
+
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(issuer)
+    .setAudience(TEST_JWT_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(TEST_JWT_KEY);
+}

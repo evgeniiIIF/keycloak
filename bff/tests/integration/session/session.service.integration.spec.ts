@@ -1,31 +1,33 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { RedisService } from '@/infra/redis/services/redis.service';
-import { SessionService } from '@/modules/auth/sessions/services/session.service';
+import { RedisClient } from '@/infra/redis/redis.client';
 import { KeycloakJwtPayload, TokenSet } from '@/modules/auth/types/keycloak';
+import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
+import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
+import { SessionService } from '@/modules/sessions/services/session.service';
 
-describe('SessionService (integration)', () => {
+describe('SessionService (integration, real Redis)', () => {
+  let redis: RedisClient;
   let sessionService: SessionService;
-  let redisService: RedisService;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [RedisService, SessionService],
+      providers: [RedisClient, SessionRepository, UserSessionsRepository, SessionService],
     }).compile();
 
-    redisService = moduleRef.get(RedisService);
+    redis = moduleRef.get(RedisClient);
     sessionService = moduleRef.get(SessionService);
 
-    await redisService.onModuleInit();
+    await redis.onModuleInit();
   });
 
   afterAll(async () => {
-    await redisService.onModuleDestroy();
+    await redis.onModuleDestroy();
   });
 
   beforeEach(async () => {
-    await redisService.client.flushAll();
+    await redis.flushAll();
   });
 
   const idPayload: KeycloakJwtPayload = {
@@ -34,21 +36,16 @@ describe('SessionService (integration)', () => {
     preferred_username: 'testuser',
     name: 'Test User',
     realm_access: { roles: ['user', 'admin'] },
-    resource_access: {
-      'bff-client': { roles: ['client-role'] },
-    },
+    resource_access: { 'bff-client': { roles: ['client-role'] } },
   };
 
   const tokenSet: TokenSet = {
-    access_token: 'access',
-    refresh_token: 'refresh',
-    id_token: 'id',
+    access_token: 'access', refresh_token: 'refresh', id_token: 'id',
   };
 
-  describe('Сценарий 1: Создание и чтение сессии', () => {
-    it('создаёт сессию в реальном Redis и читает её обратно', async () => {
+  describe('create / get', () => {
+    it('создаёт сессию в Redis и читает обратно', async () => {
       const session = await sessionService.create(idPayload, tokenSet, 'user-123');
-
       const stored = await sessionService.get(session.id);
 
       expect(stored).toBeDefined();
@@ -58,61 +55,52 @@ describe('SessionService (integration)', () => {
     });
 
     it('возвращает null для несуществующей сессии', async () => {
-      const result = await sessionService.get('nonexistent');
-
-      expect(result).toBeNull();
+      expect(await sessionService.get('nonexistent')).toBeNull();
     });
   });
 
-  describe('Сценарий 2: Обновление токенов через Lua-скрипт', () => {
-    it('атомарно обновляет токены в сессии', async () => {
+  describe('updateTokens', () => {
+    it('атомарно обновляет токены через Lua-скрипт', async () => {
       const session = await sessionService.create(idPayload, tokenSet, 'user-123');
+      const newTokens = { accessToken: 'new-a', refreshToken: 'new-r', idToken: 'new-i' };
 
-      const newTokens = { accessToken: 'new-access', refreshToken: 'new-refresh', idToken: 'new-id' };
       await sessionService.updateTokens(session.id, newTokens);
 
       const updated = await sessionService.get(session.id);
-      expect(updated!.tokens.accessToken).toBe('new-access');
-      expect(updated!.tokens.refreshToken).toBe('new-refresh');
+      expect(updated!.tokens.accessToken).toBe('new-a');
+      expect(updated!.tokens.refreshToken).toBe('new-r');
     });
 
     it('бросает UnauthorizedException для несуществующей сессии', async () => {
-      const newTokens = { accessToken: 'new-access', refreshToken: 'new-refresh', idToken: 'new-id' };
-
+      const newTokens = { accessToken: 'a', refreshToken: 'r', idToken: 'i' };
       await expect(sessionService.updateTokens('nonexistent', newTokens))
         .rejects.toThrow(UnauthorizedException);
     });
   });
 
-  describe('Сценарий 3: Удаление сессии', () => {
+  describe('destroy', () => {
     it('удаляет сессию и связь с пользователем', async () => {
       const session = await sessionService.create(idPayload, tokenSet, 'user-123');
-
       await sessionService.destroy(session.id, 'user-123');
-
       expect(await sessionService.get(session.id)).toBeNull();
     });
   });
 
-  describe('Сценарий 4: Удаление всех сессий пользователя', () => {
-    it('удаляет все сессии пользователя из Redis', async () => {
-      const session1 = await sessionService.create(idPayload, tokenSet, 'user-123');
-      const session2 = await sessionService.create(idPayload, tokenSet, 'user-123');
-
-      expect(await sessionService.get(session1.id)).toBeDefined();
-      expect(await sessionService.get(session2.id)).toBeDefined();
+  describe('destroyAllSessions', () => {
+    it('удаляет все сессии пользователя', async () => {
+      const s1 = await sessionService.create(idPayload, tokenSet, 'user-123');
+      const s2 = await sessionService.create(idPayload, tokenSet, 'user-123');
 
       await sessionService.destroyAllSessions('user-123');
 
-      expect(await sessionService.get(session1.id)).toBeNull();
-      expect(await sessionService.get(session2.id)).toBeNull();
+      expect(await sessionService.get(s1.id)).toBeNull();
+      expect(await sessionService.get(s2.id)).toBeNull();
     });
   });
 
-  describe('Сценарий 5: Роли пользователя извлекаются правильно', () => {
+  describe('roles', () => {
     it('объединяет realm и client роли', async () => {
       const session = await sessionService.create(idPayload, tokenSet, 'user-123');
-
       expect(session.user.roles).toContain('user');
       expect(session.user.roles).toContain('admin');
       expect(session.user.roles).toContain('client-role');
