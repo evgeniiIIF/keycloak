@@ -7,6 +7,7 @@ import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
 import { SessionService } from '@/modules/sessions/services/session.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
@@ -30,6 +31,14 @@ describe('BackchannelService (unit)', () => {
       keycloak: { publicIssuer: 'http://localhost:8080/realms/TestRealm', clientId: 'bff-client' },
     } as unknown as AppConfigService;
 
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         BackchannelService,
@@ -37,6 +46,7 @@ describe('BackchannelService (unit)', () => {
         { provide: SessionService, useValue: sessionService },
         { provide: JwksService, useValue: jwks },
         { provide: AppConfigService, useValue: configMock },
+        { provide: AppLogger, useValue: loggerMock },
       ],
     }).compile();
 

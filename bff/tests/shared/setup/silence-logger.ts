@@ -1,8 +1,10 @@
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
-// Глушим логгер на уровне модуля — до того, как его вызовут сервисы в тестах.
+// Глушим AppLogger в unit-тестах: тесты проверяют поведение, а не логи.
 // setupFilesAfterEnv исполняется после загрузки Jest-фреймворка,
 // но до запуска тестовых файлов.
-jest.spyOn(Logger, 'info').mockImplementation(() => undefined);
-jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
-jest.spyOn(Logger, 'error').mockImplementation(() => undefined);
+jest.spyOn(AppLogger.prototype, 'info').mockImplementation(() => undefined);
+jest.spyOn(AppLogger.prototype, 'warn').mockImplementation(() => undefined);
+jest.spyOn(AppLogger.prototype, 'error').mockImplementation(() => undefined);
+jest.spyOn(AppLogger.prototype, 'debug').mockImplementation(() => undefined);
+jest.spyOn(AppLogger.prototype, 'setContext').mockImplementation(() => undefined);

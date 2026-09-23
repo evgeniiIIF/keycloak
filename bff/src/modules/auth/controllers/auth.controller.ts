@@ -5,7 +5,7 @@ import { Response } from 'express';
 import { AppConfigService } from '@/config/app-config.service';
 import { Session } from '@/modules/auth/types/session';
 import { StrictThrottle } from '@/shared/decorators/throttle.decorators';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 import { AuthSession, Public } from '../decorators/auth.decorator';
 import { LogoutResponseDto, MeResponseDto } from '../dto/auth-responses.dto';
@@ -19,7 +19,10 @@ export class AuthController {
   constructor(
     private readonly config: AppConfigService,
     private readonly authService: AuthService,
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext('AuthController');
+  }
 
   @Public()
   @StrictThrottle()
@@ -44,7 +47,7 @@ export class AuthController {
       await this.authService.setSessionCookies(res, session);
       res.redirect(`${this.config.frontendUrl}/`);
     } catch (err) {
-      Logger.error('AuthController', 'Callback failed', { error: (err as Error).message });
+      this.logger.error('Callback failed', { error: (err as Error).message });
       res.redirect(`${this.config.frontendUrl}/login?error=auth_failed`);
     }
   }

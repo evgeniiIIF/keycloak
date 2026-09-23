@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
@@ -13,11 +13,14 @@ import { AuthGuard } from '@/modules/auth/guards/auth.guard';
 import { GatewayModule } from '@/modules/gateway/gateway.module';
 import { SessionModule } from '@/modules/sessions/session.module';
 import { HealthController } from '@/shared/controllers/health.controller';
+import { HttpExceptionFilter } from '@/shared/filters/http-exception.filter';
+import { LoggerModule } from '@/shared/logger/logger.module';
 import { SharedModule } from '@/shared/shared.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    LoggerModule,
     TerminusModule,
     SharedModule,
     RedisModule,
@@ -40,6 +43,7 @@ import { SharedModule } from '@/shared/shared.module';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })
 export class AppModule {}

@@ -3,14 +3,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { TokenRefreshLock } from '@/modules/sessions/services/token-refresh-lock.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 describe('TokenRefreshLock (integration, real Redis)', () => {
   let lock: TokenRefreshLock;
   let redis: RedisClient;
 
   beforeAll(async () => {
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [AppConfigService, RedisClient, TokenRefreshLock],
+      providers: [AppConfigService, { provide: AppLogger, useValue: loggerMock }, RedisClient, TokenRefreshLock],
     }).compile();
 
     redis = moduleRef.get(RedisClient);

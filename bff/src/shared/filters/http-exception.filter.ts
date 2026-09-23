@@ -2,10 +2,14 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from
 import { AxiosError } from 'axios';
 import { Request, Response } from 'express';
 
-import { Logger } from '../logger/logger';
+import { AppLogger } from '../logger/app-logger.service';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  constructor(private readonly logger: AppLogger) {
+    this.logger.setContext('HttpExceptionFilter');
+  }
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
@@ -35,7 +39,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
     }
 
-    Logger.error('Filter', `${req.method} ${req.url} → ${status}`, {
+    this.logger.error(`${req.method} ${req.url} → ${status}`, {
       error: exception instanceof Error ? exception.message : String(exception),
     });
 

@@ -3,13 +3,18 @@ import { Request, Response } from 'express';
 import { EMPTY, Observable } from 'rxjs';
 
 import { AppConfigService } from '@/config/app-config.service';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()
 export class OAuthCallbackInterceptor implements NestInterceptor {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext('OAuthCallbackInterceptor');
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<Request>();
@@ -18,7 +23,7 @@ export class OAuthCallbackInterceptor implements NestInterceptor {
     const { error, code, state } = query;
 
     if (error) {
-      Logger.warn('Auth', `OAuth error: ${error}`);
+      this.logger.warn(`OAuth error: ${error}`);
       res.redirect(`${this.config.frontendUrl}/login?error=${error}`);
       return EMPTY;
     }

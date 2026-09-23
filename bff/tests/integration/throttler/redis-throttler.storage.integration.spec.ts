@@ -3,14 +3,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { RedisThrottlerStorage } from '@/infra/throttler/redis-throttler.storage';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 describe('RedisThrottlerStorage (integration, real Redis)', () => {
   let storage: RedisThrottlerStorage;
   let redis: RedisClient;
 
   beforeAll(async () => {
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [AppConfigService, RedisClient, RedisThrottlerStorage],
+      providers: [AppConfigService, { provide: AppLogger, useValue: loggerMock }, RedisClient, RedisThrottlerStorage],
     }).compile();
 
     redis = moduleRef.get(RedisClient);

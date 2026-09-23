@@ -8,6 +8,7 @@ import { JwksService } from '@/modules/auth/services/jwks.service';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
 import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
 import { SessionService } from '@/modules/sessions/services/session.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
@@ -18,9 +19,18 @@ describe('BackchannelService (integration, real Redis)', () => {
   let sessionService: SessionService;
 
   beforeAll(async () => {
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AppConfigService,
+        { provide: AppLogger, useValue: loggerMock },
         RedisClient,
         SessionRepository,
         UserSessionsRepository,

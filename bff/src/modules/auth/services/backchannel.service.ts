@@ -5,7 +5,7 @@ import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { RedisKeys, RedisTtl } from '@/infra/redis/redis.keys';
 import { SessionService } from '@/modules/sessions/services/session.service';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 import { JwksService } from './jwks.service';
 
@@ -29,7 +29,10 @@ export class BackchannelService {
     private readonly jwks: JwksService,
     private readonly redis: RedisClient,
     private readonly sessionService: SessionService,
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext('BackchannelService');
+  }
 
   // Главный сценарий: верифицируем токен → защищаемся от replay → удаляем сессии
   async handleBackchannelLogout(logoutToken: string): Promise<void> {
@@ -78,7 +81,7 @@ export class BackchannelService {
   private async checkReplay(jti: string | undefined): Promise<void> {
     if (!jti) return;                                             // без jti replay-защита невозможна
     if (await this.isReplayed(jti)) {                             // если уже видели
-      Logger.warn('Auth', 'Backchannel logout replay', { jti });
+      this.logger.warn('Backchannel logout replay', { jti });
       throw new UnauthorizedException('Replay detected');
     }
     await this.markAsSeen(jti);                                   // помечаем как использованный
@@ -98,7 +101,7 @@ export class BackchannelService {
 
   // Удаляем все сессии пользователя по sub
   private async destroyUserSessions(sub: string): Promise<void> {
-    Logger.info('Auth', 'Backchannel logout', { sub });
+    this.logger.info('Backchannel logout', { sub });
     await this.sessionService.destroyAllSessions(sub);
   }
 }

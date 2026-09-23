@@ -8,7 +8,7 @@ import { KeycloakErrorBody } from '@/modules/auth/types/keycloak';
 import { Session } from '@/modules/auth/types/session';
 import { SessionService } from '@/modules/sessions/services/session.service';
 import { TokenRefreshLock } from '@/modules/sessions/services/token-refresh-lock.service';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 // Расширяем стандартный конфиг Axios для поддержки флага ретрая
 export interface RetryableConfig extends InternalAxiosRequestConfig {
@@ -24,7 +24,9 @@ export class AxiosHttpClient {
     private readonly authService: AuthService,
     private readonly refreshLock: TokenRefreshLock,
     private readonly sessionService: SessionService,
+    private readonly logger: AppLogger,
   ) {
+    this.logger.setContext('HttpClient');
     this.client = axios.create();
     this.client.interceptors.request.use((cfg) => this.attachToken(cfg));
     this.client.interceptors.response.use(
@@ -107,10 +109,10 @@ export class AxiosHttpClient {
 
   // Выполняем обновление токенов через Auth сервис и обновляем контекст запроса
   private async executeRefresh(session: Session, config: RetryableConfig): Promise<void> {
-    Logger.warn('HttpClient', '401 — refreshing token', { url: config.url });
+    this.logger.warn('401 — refreshing token', { url: config.url });
     const newTokens = await this.authService.refreshTokens(session.id, session.tokens); // обновляем токены в Keycloak и Redis
     this.request.session = { ...session, tokens: newTokens }; // обновляем сессию в памяти
-    Logger.info('HttpClient', 'Token refreshed, retrying', { url: config.url });
+    this.logger.info('Token refreshed, retrying', { url: config.url });
   }
 
   // Level 5: Примитивы

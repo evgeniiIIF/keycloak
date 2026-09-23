@@ -5,7 +5,7 @@ import { JWTPayload,jwtVerify } from 'jose';
 
 import { AppConfigService } from '@/config/app-config.service';
 import { SessionService } from '@/modules/sessions/services/session.service';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 import { errorMessage } from '@/shared/utils/utils';
 
 import { OAuthState, OAuthStateRepository } from '../storage/oauth-state.repository';
@@ -29,7 +29,10 @@ export class AuthService {
     private readonly keycloak: KeycloakClient,
     private readonly jwks: JwksService,
     private readonly sessionService: SessionService,
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext('AuthService');
+  }
 
   // Строим URL редиректа на Keycloak.
   // Генерируем PKCE пару, state и nonce, сохраняем verifier+nonce под state.
@@ -49,7 +52,7 @@ export class AuthService {
     const session = await this.sessionService.create(idTokenPayload, tokenSet, idTokenPayload.sub);
     await this.oauthState.delete(state);                                              // state — one-time
 
-    Logger.info('Auth', 'Login complete', { user: session.user.username || session.user.email });
+    this.logger.info('Login complete', { user: session.user.username || session.user.email });
     return session;
   }
 
@@ -121,7 +124,7 @@ export class AuthService {
       });
       return payload;
     } catch (err) {
-      Logger.warn('Auth', `id_token verification failed: ${errorMessage(err)}`);
+      this.logger.warn(`id_token verification failed: ${errorMessage(err)}`);
       throw new UnauthorizedException('Invalid id_token');
     }
   }
@@ -180,7 +183,7 @@ export class AuthService {
     try {
       await this.sessionService.destroy(session.id, session.user.id);
     } catch (err) {
-      Logger.error('AuthService', `Session destroy error: ${errorMessage(err)}`);
+      this.logger.error(`Session destroy error: ${errorMessage(err)}`);
     }
   }
 
@@ -188,7 +191,7 @@ export class AuthService {
     try {
       await this.keycloak.revokeRefreshToken(refreshToken);
     } catch (err) {
-      Logger.warn('AuthService', `Failed to revoke refresh token: ${errorMessage(err)}`);
+      this.logger.warn(`Failed to revoke refresh token: ${errorMessage(err)}`);
     }
   }
 

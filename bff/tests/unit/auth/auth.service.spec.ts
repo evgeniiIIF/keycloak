@@ -10,6 +10,7 @@ import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
 import { OAuthStateRepository } from '@/modules/auth/storage/oauth-state.repository';
 import { Session } from '@/modules/auth/types/session';
 import { SessionService } from '@/modules/sessions/services/session.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 describe('AuthService (unit)', () => {
   let authService: AuthService;
@@ -51,6 +52,14 @@ describe('AuthService (unit)', () => {
       isProduction: false,
     } as unknown as AppConfigService;
 
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -59,6 +68,7 @@ describe('AuthService (unit)', () => {
         { provide: KeycloakClient, useValue: keycloak },
         { provide: JwksService, useValue: jwks },
         { provide: AppConfigService, useValue: configMock },
+        { provide: AppLogger, useValue: loggerMock },
       ],
     }).compile();
 

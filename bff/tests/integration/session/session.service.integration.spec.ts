@@ -7,14 +7,23 @@ import { KeycloakJwtPayload, TokenSet } from '@/modules/auth/types/keycloak';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
 import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
 import { SessionService } from '@/modules/sessions/services/session.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 describe('SessionService (integration, real Redis)', () => {
   let redis: RedisClient;
   let sessionService: SessionService;
 
   beforeAll(async () => {
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [AppConfigService, RedisClient, SessionRepository, UserSessionsRepository, SessionService],
+      providers: [AppConfigService, { provide: AppLogger, useValue: loggerMock }, RedisClient, SessionRepository, UserSessionsRepository, SessionService],
     }).compile();
 
     redis = moduleRef.get(RedisClient);

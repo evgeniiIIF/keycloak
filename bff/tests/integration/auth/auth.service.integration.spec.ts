@@ -12,6 +12,7 @@ import { OAuthStateRepository } from '@/modules/auth/storage/oauth-state.reposit
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
 import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
 import { SessionService } from '@/modules/sessions/services/session.service';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 jest.mock('@/modules/auth/services/keycloak.service');
 
@@ -24,9 +25,18 @@ describe('AuthService (integration, real Redis)', () => {
   let keycloak: jest.Mocked<KeycloakClient>;
 
   beforeAll(async () => {
+    const loggerMock = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    } as unknown as AppLogger;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AppConfigService,
+        { provide: AppLogger, useValue: loggerMock },
         RedisClient,
         OAuthStateRepository,
         SessionRepository,

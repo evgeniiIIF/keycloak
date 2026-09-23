@@ -4,21 +4,23 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
+import { Logger } from 'nestjs-pino';
 
 import { AppConfigService } from '@/config/app-config.service';
-import { HttpExceptionFilter } from '@/shared/filters/http-exception.filter';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 import { AppModule } from './app.module';
 
 // Точка входа BFF: собирает NestJS-приложение, настраивает middleware,
 // поднимает HTTP-сервер. Все шаги явно перечислены в bootstrap.
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);          // создаём приложение
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });  // буфер логов до готовности pino
   const config = app.get(AppConfigService);                 // достаём конфиг из DI
+  const logger = await app.resolve(AppLogger);              // transient logger для bootstrap
+  app.useLogger(app.get(Logger));                         // NestJS internal → pino
   configureApp(app, config);                                // middleware, pipes, filters, cors
-  if (!config.isProduction) setupSwagger(app, config);      // swagger только вне прода
-  await startServer(app, config);                           // слушаем порт
+  if (!config.isProduction) setupSwagger(app, config, logger);  // swagger только вне прода
+  await startServer(app, config, logger);                   // слушаем порт
 }
 
 // Настраиваем глобальные middleware, pipes, filters и CORS.
@@ -30,7 +32,6 @@ function configureApp(app: INestApplication, config: AppConfigService): void {
   app.use(express.urlencoded({ extended: true }));          // body parser urlencoded
   configureValidation(app);                                 // глобальные pipe-ы
   configureCors(app, config);                               // CORS
-  app.useGlobalFilters(new HttpExceptionFilter());          // единый формат ошибок
   app.enableShutdownHooks();                                // корректное завершение
 }
 
@@ -56,7 +57,7 @@ function configureCors(app: INestApplication, config: AppConfigService): void {
 }
 
 // Swagger UI доступен только вне production, чтобы не отдавать схему API публично.
-function setupSwagger(app: INestApplication, config: AppConfigService): void {
+function setupSwagger(app: INestApplication, config: AppConfigService, logger: AppLogger): void {
   const configBuilder = new DocumentBuilder()
     .setTitle('Keycloak BFF API')
     .setDescription('API документация для BFF сервиса')
@@ -65,13 +66,13 @@ function setupSwagger(app: INestApplication, config: AppConfigService): void {
 
   const document = SwaggerModule.createDocument(app, configBuilder.build());
   SwaggerModule.setup('api/docs', app, document);
-  Logger.info('App', `Swagger UI on http://localhost:${config.port}/api/docs`);
+  logger.info(`Swagger UI on http://localhost:${config.port}/api/docs`);
 }
 
 // Запускаем HTTP-сервер и логируем адрес
-async function startServer(app: INestApplication, config: AppConfigService): Promise<void> {
+async function startServer(app: INestApplication, config: AppConfigService, logger: AppLogger): Promise<void> {
   await app.listen(config.port);
-  Logger.info('App', `Running on http://localhost:${config.port}`);
+  logger.info(`Running on http://localhost:${config.port}`);
 }
 
 void bootstrap();

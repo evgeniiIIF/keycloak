@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
 import { AppConfigService } from '@/config/app-config.service';
-import { Logger } from '@/shared/logger/logger';
+import { AppLogger } from '@/shared/logger/app-logger.service';
 
 // Таймаут установки соединения с Redis при старте приложения
 const REDIS_CONNECT_TIMEOUT_MS = 5000;
@@ -14,23 +14,27 @@ const REDIS_CONNECT_TIMEOUT_MS = 5000;
 export class RedisClient implements OnModuleInit, OnModuleDestroy {
   private readonly client: RedisClientType;
 
-  constructor(private readonly config: AppConfigService) {
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext('Redis');
     this.client = createClient({
       url: config.redis.url,
       password: config.redis.password,
       socket: config.redis.url.startsWith('rediss://') ? { tls: true } : undefined,
     });
 
-    this.client.on('error', (err) => Logger.error('Redis', err.message));
+    this.client.on('error', (err) => this.logger.error(err.message));
   }
 
   // Подключаемся к Redis при старте приложения
   async onModuleInit() {
     try {
       await this.connectWithTimeout();                    // подключаемся или кидает ошибку
-      Logger.info('Redis', 'Connected');                  // логируем успех
+      this.logger.info('Connected');                  // логируем успех
     } catch (err) {
-      Logger.error('Redis', 'Failed to connect', { error: this.errorMessage(err) });
+      this.logger.error('Failed to connect', { error: this.errorMessage(err) });
       throw err;                                          // падаем — NestJS не стартует
     }
   }
