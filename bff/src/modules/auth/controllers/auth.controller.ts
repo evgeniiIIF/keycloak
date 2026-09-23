@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Query, Res, UseInterceptors } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 
 import { config } from '@/config/config';
 import { Session } from '@/modules/auth/types/session';
+import { StrictThrottle } from '@/shared/decorators/throttle.decorators';
 import { Logger } from '@/shared/logger/logger';
 
 import { AuthSession, Public } from '../decorators/auth.decorator';
@@ -19,7 +19,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ strict: { limit: config.throttle.strictLimit, ttl: config.throttle.ttlSeconds * 1000 } })
+  @StrictThrottle()
   @Get('login')
   @ApiOperation({ summary: 'Инициировать OAuth2 flow — редирект на Keycloak' })
   @ApiResponse({ status: 302, description: 'Редирект на страницу входа Keycloak' })
@@ -29,7 +29,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ strict: { limit: config.throttle.strictLimit, ttl: config.throttle.ttlSeconds * 1000 } })
+  @StrictThrottle()
   @Get('callback')
   @UseInterceptors(OAuthCallbackInterceptor)
   @ApiOperation({ summary: 'Обработать ответ от Keycloak, создать сессию' })
@@ -55,7 +55,7 @@ export class AuthController {
     return { user: session.user };
   }
 
-  @Throttle({ strict: { limit: config.throttle.strictLimit, ttl: config.throttle.ttlSeconds * 1000 } })
+  @StrictThrottle()
   @Post('logout')
   @ApiCookieAuth('connect.sid')
   @ApiOperation({ summary: 'Выйти из системы — удалить сессию и вернуть URL выхода из Keycloak' })

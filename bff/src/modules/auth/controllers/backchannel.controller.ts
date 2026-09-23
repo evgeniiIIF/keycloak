@@ -1,8 +1,7 @@
 import { Body, Controller, Header, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
 
-import { config } from '@/config/config';
+import { StrictThrottle } from '@/shared/decorators/throttle.decorators';
 
 import { Public } from '../decorators/auth.decorator';
 import { BackchannelLogoutDto } from '../dto/backchannel-logout.dto';
@@ -10,7 +9,7 @@ import { BackchannelService } from '../services/backchannel.service';
 
 @ApiTags('backchannel')
 @Public()
-@Throttle({ strict: { limit: config.throttle.strictLimit, ttl: config.throttle.ttlSeconds * 1000 } })
+@StrictThrottle()
 @Controller()
 export class BackchannelController {
   constructor(private backchannelService: BackchannelService) {}
