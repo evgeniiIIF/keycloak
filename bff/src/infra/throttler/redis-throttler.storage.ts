@@ -4,14 +4,14 @@ import { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-storage
 
 import { RedisClient } from '@/infra/redis/redis.client';
 
-// Lua-скрипт инкремента счётчика и блокировки при превышении лимита.
+// Lua-скрипт инкремента счётчика и (опционально) блокировки при превышении.
 // Всё атомарно — при параллельных запросах не будет двойного инкремента.
 //
 // KEYS[1] — ключ счётчика
 // KEYS[2] — ключ блокировки
 // ARGV[1] — ttl счётчика, сек
 // ARGV[2] — limit
-// ARGV[3] — blockDuration, сек
+// ARGV[3] — blockDuration, сек (0 = блокировка отключена)
 const INCREMENT_LUA = `
 local hits = redis.call('INCR', KEYS[1])
 if hits == 1 then
@@ -20,14 +20,15 @@ end
 
 local ttl = redis.call('TTL', KEYS[1])
 local limit = tonumber(ARGV[2])
+local blockDuration = tonumber(ARGV[3])
 local isBlocked = 0
 local blockTtl = 0
 
-if hits > limit then
+if hits > limit and blockDuration > 0 then
   local existing = redis.call('TTL', KEYS[2])
   if existing < 0 then
-    redis.call('SET', KEYS[2], '1', 'EX', ARGV[3])
-    blockTtl = tonumber(ARGV[3])
+    redis.call('SET', KEYS[2], '1', 'EX', blockDuration)
+    blockTtl = blockDuration
   else
     blockTtl = existing
   end
