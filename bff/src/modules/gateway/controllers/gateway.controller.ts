@@ -2,7 +2,7 @@ import { BadRequestException, Controller, Delete, Get, Param, Patch, Post, Put, 
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 
 import { HttpClient } from '../services/http-client.service';
 
@@ -10,14 +10,17 @@ import { HttpClient } from '../services/http-client.service';
 @ApiCookieAuth('connect.sid')
 @Controller('api/service')
 export class GatewayController {
-  constructor(private http: HttpClient) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly http: HttpClient,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Проксировать GET / к защищённому сервису' })
   @ApiResponse({ status: 200, description: 'Ответ от защищённого сервиса' })
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async getRoot() {
-    return this.http.get(`${config.protectedServiceUrl}/`);
+    return this.http.get(`${this.config.protectedServiceUrl}/`);
   }
 
   @Get('*')
@@ -27,7 +30,7 @@ export class GatewayController {
   @ApiResponse({ status: 401, description: 'Не авторизован' })
   async get(@Param('0') path: string, @Req() req: Request) {
     const sanitizedPath = this.sanitizePath(path);
-    return this.http.get(`${config.protectedServiceUrl}/${sanitizedPath}`, req.query);
+    return this.http.get(`${this.config.protectedServiceUrl}/${sanitizedPath}`, req.query);
   }
 
   @Post('*')
@@ -37,7 +40,7 @@ export class GatewayController {
   @ApiResponse({ status: 401, description: 'Не авторизован или невалидный CSRF' })
   async post(@Param('0') path: string, @Req() req: Request) {
     const sanitizedPath = this.sanitizePath(path);
-    return this.http.post(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
+    return this.http.post(`${this.config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Put('*')
@@ -46,7 +49,7 @@ export class GatewayController {
   @ApiResponse({ status: 401, description: 'Не авторизован или невалидный CSRF' })
   async put(@Param('0') path: string, @Req() req: Request) {
     const sanitizedPath = this.sanitizePath(path);
-    return this.http.put(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
+    return this.http.put(`${this.config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   @Delete('*')
@@ -55,7 +58,7 @@ export class GatewayController {
   @ApiResponse({ status: 401, description: 'Не авторизован или невалидный CSRF' })
   async delete(@Param('0') path: string) {
     const sanitizedPath = this.sanitizePath(path);
-    return this.http.delete(`${config.protectedServiceUrl}/${sanitizedPath}`);
+    return this.http.delete(`${this.config.protectedServiceUrl}/${sanitizedPath}`);
   }
 
   @Patch('*')
@@ -64,7 +67,7 @@ export class GatewayController {
   @ApiResponse({ status: 401, description: 'Не авторизован или невалидный CSRF' })
   async patch(@Param('0') path: string, @Req() req: Request) {
     const sanitizedPath = this.sanitizePath(path);
-    return this.http.patch(`${config.protectedServiceUrl}/${sanitizedPath}`, req.body);
+    return this.http.patch(`${this.config.protectedServiceUrl}/${sanitizedPath}`, req.body);
   }
 
   private sanitizePath(path: string): string {

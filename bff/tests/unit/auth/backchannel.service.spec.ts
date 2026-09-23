@@ -2,6 +2,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
@@ -25,12 +26,17 @@ describe('BackchannelService (unit)', () => {
       getJWKS: jest.fn().mockReturnValue(TEST_JWT_PUBLIC_KEY),
     } as unknown as jest.Mocked<JwksService>;
 
+    const configMock = {
+      keycloak: { publicIssuer: 'http://localhost:8080/realms/TestRealm', clientId: 'bff-client' },
+    } as unknown as AppConfigService;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         BackchannelService,
         { provide: RedisClient, useValue: redis },
         { provide: SessionService, useValue: sessionService },
         { provide: JwksService, useValue: jwks },
+        { provide: AppConfigService, useValue: configMock },
       ],
     }).compile();
 

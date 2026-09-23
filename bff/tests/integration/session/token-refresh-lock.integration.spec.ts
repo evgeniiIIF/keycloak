@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { TokenRefreshLock } from '@/modules/sessions/services/token-refresh-lock.service';
 
@@ -9,7 +10,7 @@ describe('TokenRefreshLock (integration, real Redis)', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [RedisClient, TokenRefreshLock],
+      providers: [AppConfigService, RedisClient, TokenRefreshLock],
     }).compile();
 
     redis = moduleRef.get(RedisClient);

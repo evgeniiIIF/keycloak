@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { Session } from '@/modules/auth/types/session';
 import { SessionService } from '@/modules/sessions/services/session.service';
 
@@ -14,6 +14,7 @@ const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
+    private readonly config: AppConfigService,
     private readonly reflector: Reflector,
     private readonly sessionService: SessionService,
     private readonly authService: AuthService,
@@ -27,7 +28,7 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest<Request>();
-    const sessionId = req.cookies?.[config.session.cookieName];
+    const sessionId = req.cookies?.[this.config.session.cookieName];
     if (!sessionId) throw new UnauthorizedException('Not authenticated');
 
     const session = await this.sessionService.get(sessionId);

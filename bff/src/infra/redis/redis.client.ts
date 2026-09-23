@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { Logger } from '@/shared/logger/logger';
 
 // Таймаут установки соединения с Redis при старте приложения
@@ -14,7 +14,7 @@ const REDIS_CONNECT_TIMEOUT_MS = 5000;
 export class RedisClient implements OnModuleInit, OnModuleDestroy {
   private readonly client: RedisClientType;
 
-  constructor() {
+  constructor(private readonly config: AppConfigService) {
     this.client = createClient({
       url: config.redis.url,
       password: config.redis.password,

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
@@ -12,6 +12,7 @@ import { SessionService } from '@/modules/sessions/services/session.service';
 const BACKCHANNEL_EVENT = 'http://schemas.openid.net/event/backchannel-logout';
 
 describe('BackchannelService (integration, real Redis)', () => {
+  let appConfig: AppConfigService;
   let redis: RedisClient;
   let backchannel: BackchannelService;
   let sessionService: SessionService;
@@ -19,6 +20,7 @@ describe('BackchannelService (integration, real Redis)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
+        AppConfigService,
         RedisClient,
         SessionRepository,
         UserSessionsRepository,
@@ -28,6 +30,7 @@ describe('BackchannelService (integration, real Redis)', () => {
       ],
     }).compile();
 
+    appConfig = moduleRef.get(AppConfigService);
     redis = moduleRef.get(RedisClient);
     sessionService = moduleRef.get(SessionService);
     backchannel = moduleRef.get(BackchannelService);
@@ -44,7 +47,7 @@ describe('BackchannelService (integration, real Redis)', () => {
   });
 
   it('replay-защита работает с реальным Redis', async () => {
-    const token = await signLogoutToken({ sub: 'user-1', jti: 'jti-integration-1' });
+    const token = await signLogoutToken({ sub: 'user-1', jti: 'jti-integration-1' }, appConfig);
 
     await backchannel.handleBackchannelLogout(token);
 
@@ -79,13 +82,16 @@ describe('BackchannelService (integration, real Redis)', () => {
 });
 
 // В integration issuer приходит от testcontainers, а не из .env — берём из config.
-async function signLogoutToken(claims: { sub?: string; jti?: string }): Promise<string> {
+async function signLogoutToken(
+  claims: { sub?: string; jti?: string },
+  appConfig: AppConfigService,
+): Promise<string> {
   const payload: Record<string, unknown> = { events: { [BACKCHANNEL_EVENT]: {} } };
   if (claims.sub) payload.sub = claims.sub;
   if (claims.jti) payload.jti = claims.jti;
 
   return signTestJwt(payload, {
-    issuer: config.keycloak.publicIssuer,
-    audience: config.keycloak.clientId,
+    issuer: appConfig.keycloak.publicIssuer,
+    audience: appConfig.keycloak.clientId,
   });
 }

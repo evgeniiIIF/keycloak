@@ -3,7 +3,7 @@ import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-key
 import { idTokenPayload, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 import * as crypto from 'crypto';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { AuthService } from '@/modules/auth/services/auth.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
@@ -16,6 +16,7 @@ import { SessionService } from '@/modules/sessions/services/session.service';
 jest.mock('@/modules/auth/services/keycloak.service');
 
 describe('AuthService (integration, real Redis)', () => {
+  let appConfig: AppConfigService;
   let redis: RedisClient;
   let oauthState: OAuthStateRepository;
   let sessionService: SessionService;
@@ -25,6 +26,7 @@ describe('AuthService (integration, real Redis)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
+        AppConfigService,
         RedisClient,
         OAuthStateRepository,
         SessionRepository,
@@ -39,6 +41,7 @@ describe('AuthService (integration, real Redis)', () => {
       ],
     }).compile();
 
+    appConfig = moduleRef.get(AppConfigService);
     redis = moduleRef.get(RedisClient);
     oauthState = moduleRef.get(OAuthStateRepository);
     sessionService = moduleRef.get(SessionService);
@@ -89,8 +92,8 @@ describe('AuthService (integration, real Redis)', () => {
         { email: 'u@e.com', preferred_username: 'u', nonce },
         {
           subject: idTokenPayload.sub,
-          issuer: config.keycloak.publicIssuer,
-          audience: config.keycloak.clientId,
+          issuer: appConfig.keycloak.publicIssuer,
+          audience: appConfig.keycloak.clientId,
         },
       );
       keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });

@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { HttpExceptionFilter } from '@/shared/filters/http-exception.filter';
 import { Logger } from '@/shared/logger/logger';
 
@@ -15,21 +15,21 @@ import { AppModule } from './app.module';
 // поднимает HTTP-сервер. Все шаги явно перечислены в bootstrap.
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);          // создаём приложение
-  configureApp(app);                                        // middleware, pipes, filters, cors
-  if (!config.isProduction) setupSwagger(app);              // swagger только вне прода
-  await startServer(app);                                   // слушаем порт
+  const config = app.get(AppConfigService);                 // достаём конфиг из DI
+  configureApp(app, config);                                // middleware, pipes, filters, cors
+  if (!config.isProduction) setupSwagger(app, config);      // swagger только вне прода
+  await startServer(app, config);                           // слушаем порт
 }
 
 // Настраиваем глобальные middleware, pipes, filters и CORS.
-// Порядок важен: helmet → cookie-parser → body-parser → filters → cors.
-function configureApp(app: INestApplication): void {
+function configureApp(app: INestApplication, config: AppConfigService): void {
   configureTrustProxy(app);                                 // trust proxy для X-Forwarded-*
   app.use(helmet());                                        // security headers
   app.use(cookieParser());                                  // cookies → req.cookies
   app.use(express.json());                                  // body parser json
   app.use(express.urlencoded({ extended: true }));          // body parser urlencoded
   configureValidation(app);                                 // глобальные pipe-ы
-  configureCors(app);                                       // CORS
+  configureCors(app, config);                               // CORS
   app.useGlobalFilters(new HttpExceptionFilter());          // единый формат ошибок
   app.enableShutdownHooks();                                // корректное завершение
 }
@@ -47,7 +47,7 @@ function configureValidation(app: INestApplication): void {
 }
 
 // CORS с credentials — куки уходят на фронт, origin строго из конфига
-function configureCors(app: INestApplication): void {
+function configureCors(app: INestApplication, config: AppConfigService): void {
   app.enableCors({
     origin: config.corsOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -56,7 +56,7 @@ function configureCors(app: INestApplication): void {
 }
 
 // Swagger UI доступен только вне production, чтобы не отдавать схему API публично.
-function setupSwagger(app: INestApplication): void {
+function setupSwagger(app: INestApplication, config: AppConfigService): void {
   const configBuilder = new DocumentBuilder()
     .setTitle('Keycloak BFF API')
     .setDescription('API документация для BFF сервиса')
@@ -69,7 +69,7 @@ function setupSwagger(app: INestApplication): void {
 }
 
 // Запускаем HTTP-сервер и логируем адрес
-async function startServer(app: INestApplication): Promise<void> {
+async function startServer(app: INestApplication, config: AppConfigService): Promise<void> {
   await app.listen(config.port);
   Logger.info('App', `Running on http://localhost:${config.port}`);
 }

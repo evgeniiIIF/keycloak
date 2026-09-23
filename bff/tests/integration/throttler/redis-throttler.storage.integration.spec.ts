@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { RedisThrottlerStorage } from '@/infra/throttler/redis-throttler.storage';
 
@@ -9,7 +10,7 @@ describe('RedisThrottlerStorage (integration, real Redis)', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [RedisClient, RedisThrottlerStorage],
+      providers: [AppConfigService, RedisClient, RedisThrottlerStorage],
     }).compile();
 
     redis = moduleRef.get(RedisClient);

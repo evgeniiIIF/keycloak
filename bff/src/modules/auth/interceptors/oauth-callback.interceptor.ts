@@ -2,13 +2,15 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { Request, Response } from 'express';
 import { EMPTY, Observable } from 'rxjs';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { Logger } from '@/shared/logger/logger';
 
 import { OAuthCallbackDto } from '../dto/oauth-callback.dto';
 
 @Injectable()
 export class OAuthCallbackInterceptor implements NestInterceptor {
+  constructor(private readonly config: AppConfigService) {}
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
@@ -17,12 +19,12 @@ export class OAuthCallbackInterceptor implements NestInterceptor {
 
     if (error) {
       Logger.warn('Auth', `OAuth error: ${error}`);
-      res.redirect(`${config.frontendUrl}/login?error=${error}`);
+      res.redirect(`${this.config.frontendUrl}/login?error=${error}`);
       return EMPTY;
     }
 
     if (!code || !state) {
-      res.redirect(`${config.frontendUrl}/login?error=missing_params`);
+      res.redirect(`${this.config.frontendUrl}/login?error=missing_params`);
       return EMPTY;
     }
 

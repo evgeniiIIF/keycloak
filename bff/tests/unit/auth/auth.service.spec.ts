@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 import { initFixtures, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { AuthService } from '@/modules/auth/services/auth.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
 import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
@@ -41,6 +42,15 @@ describe('AuthService (unit)', () => {
       getJWKS: jest.fn().mockReturnValue(TEST_JWT_PUBLIC_KEY),
     } as unknown as jest.Mocked<JwksService>;
 
+    const configMock = {
+      keycloak: {
+        publicIssuer: 'http://localhost:8080/realms/TestRealm',
+        clientId: 'bff-client',
+      },
+      session: { cookieName: 'connect.sid', ttl: 86400 },
+      isProduction: false,
+    } as unknown as AppConfigService;
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -48,6 +58,7 @@ describe('AuthService (unit)', () => {
         { provide: SessionService, useValue: sessionService },
         { provide: KeycloakClient, useValue: keycloak },
         { provide: JwksService, useValue: jwks },
+        { provide: AppConfigService, useValue: configMock },
       ],
     }).compile();
 

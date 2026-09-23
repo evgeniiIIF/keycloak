@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
 
 // Мокаем axios
@@ -15,7 +16,16 @@ describe('KeycloakClient (unit)', () => {
       post: axiosPostMock,
     });
 
-    keycloakClient = new KeycloakClient();
+    const configMock = {
+      keycloak: {
+        issuer: 'http://localhost:8080/realms/TestRealm',
+        clientId: 'bff-client',
+        clientSecret: 'secret',
+        redirectUri: 'http://localhost:3000/callback',
+      },
+    } as unknown as AppConfigService;
+
+    keycloakClient = new KeycloakClient(configMock);
   });
 
   describe('exchangeCode', () => {

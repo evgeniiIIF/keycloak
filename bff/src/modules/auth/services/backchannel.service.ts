@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JWTPayload, jwtVerify } from 'jose';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { RedisKeys, RedisTtl } from '@/infra/redis/redis.keys';
 import { SessionService } from '@/modules/sessions/services/session.service';
@@ -25,6 +25,7 @@ interface BackchannelLogoutPayload extends JWTPayload {
 @Injectable()
 export class BackchannelService {
   constructor(
+    private readonly config: AppConfigService,
     private readonly jwks: JwksService,
     private readonly redis: RedisClient,
     private readonly sessionService: SessionService,
@@ -44,8 +45,8 @@ export class BackchannelService {
   private async verifyLogoutToken(logoutToken: string): Promise<BackchannelLogoutPayload> {
     try {
       const { payload } = await jwtVerify(logoutToken, this.jwks.getJWKS(), {
-        issuer: config.keycloak.publicIssuer,
-        audience: config.keycloak.clientId,
+        issuer: this.config.keycloak.publicIssuer,
+        audience: this.config.keycloak.clientId,
       });
       const logoutPayload = payload as BackchannelLogoutPayload;
       this.requireBackchannelEvent(logoutPayload);                // проверяем наличие event

@@ -3,7 +3,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
+import { AppConfigModule } from '@/config/config.module';
 import { RedisModule } from '@/infra/redis/redis.module';
 import { RedisThrottlerStorage } from '@/infra/throttler/redis-throttler.storage';
 import { ThrottlerInfraModule } from '@/infra/throttler/throttler-infra.module';
@@ -16,6 +17,7 @@ import { SharedModule } from '@/shared/shared.module';
 
 @Module({
   imports: [
+    AppConfigModule,
     TerminusModule,
     SharedModule,
     RedisModule,
@@ -24,11 +26,11 @@ import { SharedModule } from '@/shared/shared.module';
     GatewayModule,
     ThrottlerModule.forRootAsync({
       imports: [ThrottlerInfraModule],
-      inject: [RedisThrottlerStorage],
-      useFactory: (storage: RedisThrottlerStorage) => ({
+      inject: [RedisThrottlerStorage, AppConfigService],
+      useFactory: (storage: RedisThrottlerStorage, cfg: AppConfigService) => ({
         throttlers: [
-          { name: 'default', ttl: config.throttle.ttlSeconds * 1000, limit: config.throttle.defaultLimit },
-          { name: 'strict', ttl: config.throttle.ttlSeconds * 1000, limit: config.throttle.strictLimit },
+          { name: 'default', ttl: cfg.throttle.ttlSeconds * 1000, limit: cfg.throttle.defaultLimit },
+          { name: 'strict', ttl: cfg.throttle.ttlSeconds * 1000, limit: cfg.throttle.strictLimit },
         ],
         storage,
       }),

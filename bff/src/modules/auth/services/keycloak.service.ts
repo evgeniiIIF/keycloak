@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { TokenSet } from '@/modules/auth/types/keycloak';
 
 interface KeycloakBaseParams {
@@ -13,17 +13,19 @@ const FORM_HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded' } as 
 
 @Injectable()
 export class KeycloakClient {
-  private readonly tokenEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/token`;
-  private readonly revokeEndpoint = `${config.keycloak.issuer}/protocol/openid-connect/revoke`;
+  private readonly tokenEndpoint: string;
+  private readonly revokeEndpoint: string;
+  private readonly axiosInstance = axios.create({ timeout: 5000 });
 
-  private readonly axiosInstance = axios.create({
-    timeout: 5000,
-  });
+  constructor(private readonly config: AppConfigService) {
+    this.tokenEndpoint = `${this.config.keycloak.issuer}/protocol/openid-connect/token`;
+    this.revokeEndpoint = `${this.config.keycloak.issuer}/protocol/openid-connect/revoke`;
+  }
 
   private baseParams(): KeycloakBaseParams {
     return {
-      client_id: config.keycloak.clientId,
-      client_secret: config.keycloak.clientSecret,
+      client_id: this.config.keycloak.clientId,
+      client_secret: this.config.keycloak.clientSecret,
     };
   }
 
@@ -33,7 +35,7 @@ export class KeycloakClient {
       new URLSearchParams({
         ...this.baseParams(),
         grant_type: 'authorization_code',
-        redirect_uri: config.keycloak.redirectUri,
+        redirect_uri: this.config.keycloak.redirectUri,
         code,
         code_verifier: codeVerifier,
       }),

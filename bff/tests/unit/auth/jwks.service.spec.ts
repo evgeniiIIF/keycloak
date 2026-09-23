@@ -1,5 +1,6 @@
 import { createRemoteJWKSet } from 'jose';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { JwksService } from '@/modules/auth/services/jwks.service';
 
 // Мокаем jose
@@ -11,7 +12,11 @@ describe('JwksService (unit)', () => {
   let jwksService: JwksService;
 
   beforeEach(() => {
-    jwksService = new JwksService();
+    const configMock = {
+      keycloak: { issuer: 'http://localhost:8080/realms/TestRealm' },
+    } as unknown as AppConfigService;
+
+    jwksService = new JwksService(configMock);
   });
 
   it('создаёт JWKS с правильным URL', () => {

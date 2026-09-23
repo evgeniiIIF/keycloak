@@ -2,7 +2,7 @@ import { Controller, Get, Post, Query, Res, UseInterceptors } from '@nestjs/comm
 import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { Session } from '@/modules/auth/types/session';
 import { StrictThrottle } from '@/shared/decorators/throttle.decorators';
 import { Logger } from '@/shared/logger/logger';
@@ -16,7 +16,10 @@ import { AuthService } from '../services/auth.service';
 @ApiTags('auth')
 @Controller()
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Public()
   @StrictThrottle()
@@ -39,10 +42,10 @@ export class AuthController {
     try {
       const session = await this.authService.exchangeCode(query.code, query.state);
       await this.authService.setSessionCookies(res, session);
-      res.redirect(`${config.frontendUrl}/`);
+      res.redirect(`${this.config.frontendUrl}/`);
     } catch (err) {
       Logger.error('AuthController', 'Callback failed', { error: (err as Error).message });
-      res.redirect(`${config.frontendUrl}/login?error=auth_failed`);
+      res.redirect(`${this.config.frontendUrl}/login?error=auth_failed`);
     }
   }
 

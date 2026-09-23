@@ -1,70 +1,62 @@
 import * as dotenv from 'dotenv';
 
+import { Env, validateEnv } from './env.schema';
+
+// Загружаем .env до валидации схемы.
 dotenv.config({ quiet: true });
 
-// Helper to ensure environment variables are present
-function getEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Environment variable ${name} is required but was not found.`);
-  }
-  return value;
+// Валидируем и типизируем переменные окружения.
+// Если чего-то не хватает или формат неверный — process.exit(1) до старта приложения.
+const env: Env = validateEnv(process.env);
+
+// Собираем URL Redis из частей, если не задан целиком.
+function buildRedisUrl(): string {
+  if (env.REDIS_URL) return env.REDIS_URL;
+  const protocol = env.REDIS_TLS === 'true' ? 'rediss' : 'redis';
+  const host = env.REDIS_HOST ?? 'localhost';
+  const port = env.REDIS_PORT ?? 6379;
+  return `${protocol}://${host}:${port}`;
 }
 
-function getEnvInt(name: string): number {
-  const value = getEnv(name);
-  const parsed = parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`Environment variable ${name} must be a number.`);
-  }
-  return parsed;
+// Собираем список CORS origins из строки через запятую.
+function buildCorsOrigins(): string[] {
+  if (!env.CORS_ORIGINS) return [env.FRONTEND_URL];
+  return env.CORS_ORIGINS.split(',').map((s) => s.trim());
 }
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (!sessionSecret || sessionSecret.length < 32) {
-  throw new Error(
-    'SESSION_SECRET must be >= 32 chars. Generate: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
-  );
-}
-
-const port = getEnvInt('PORT');
-const sessionTtl = getEnvInt('SESSION_TTL');
-const nodeEnv = getEnv('NODE_ENV');
-const clientSecret = getEnv('KEYCLOAK_CLIENT_SECRET');
-
+// Итоговый конфиг приложения.
+// Тип AppConfig — единый источник правды для DI-обёртки AppConfigService.
 export const config = {
-  nodeEnv,
-  isProduction: nodeEnv === 'production',
-  port,
-  frontendUrl: getEnv('FRONTEND_URL'),
-  protectedServiceUrl: getEnv('PROTECTED_SERVICE_URL'),
-  corsOrigins: process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
-    : [getEnv('FRONTEND_URL')],
+  nodeEnv: env.NODE_ENV,
+  isProduction: env.NODE_ENV === 'production',
+  port: env.PORT,
+  frontendUrl: env.FRONTEND_URL,
+  protectedServiceUrl: env.PROTECTED_SERVICE_URL,
+  corsOrigins: buildCorsOrigins(),
   session: {
-    secret: sessionSecret,
-    cookieName: getEnv('SESSION_COOKIE_NAME'),
-    prefix: getEnv('SESSION_PREFIX'),
-    ttl: sessionTtl,
-    oauthStateTtl: getEnvInt('OAUTH_STATE_TTL'),
+    secret: env.SESSION_SECRET,
+    cookieName: env.SESSION_COOKIE_NAME,
+    prefix: env.SESSION_PREFIX,
+    ttl: env.SESSION_TTL,
+    oauthStateTtl: env.OAUTH_STATE_TTL,
   },
   keycloak: {
-    issuer: getEnv('KEYCLOAK_ISSUER'),
-    publicIssuer: process.env.KEYCLOAK_PUBLIC_ISSUER || getEnv('KEYCLOAK_ISSUER'),
-    clientId: getEnv('KEYCLOAK_CLIENT_ID'),
-    clientSecret,
-    redirectUri: getEnv('KEYCLOAK_REDIRECT_URI'),
-    logoutRedirectUri: getEnv('KEYCLOAK_LOGOUT_REDIRECT_URI'),
+    issuer: env.KEYCLOAK_ISSUER,
+    publicIssuer: env.KEYCLOAK_PUBLIC_ISSUER ?? env.KEYCLOAK_ISSUER,
+    clientId: env.KEYCLOAK_CLIENT_ID,
+    clientSecret: env.KEYCLOAK_CLIENT_SECRET,
+    redirectUri: env.KEYCLOAK_REDIRECT_URI,
+    logoutRedirectUri: env.KEYCLOAK_LOGOUT_REDIRECT_URI,
   },
   redis: {
-    url:
-      process.env.REDIS_URL ||
-      `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${getEnv('REDIS_HOST')}:${getEnv('REDIS_PORT')}`,
-    password: process.env.REDIS_PASSWORD || undefined,
+    url: buildRedisUrl(),
+    password: env.REDIS_PASSWORD,
   },
   throttle: {
-    defaultLimit: getEnvInt('THROTTLE_DEFAULT_LIMIT'),
-    strictLimit: getEnvInt('THROTTLE_STRICT_LIMIT'),
-    ttlSeconds: getEnvInt('THROTTLE_TTL_SECONDS'),
+    defaultLimit: env.THROTTLE_DEFAULT_LIMIT,
+    strictLimit: env.THROTTLE_STRICT_LIMIT,
+    ttlSeconds: env.THROTTLE_TTL_SECONDS,
   },
 } as const;
+
+export type AppConfig = typeof config;

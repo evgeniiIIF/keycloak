@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { Response } from 'express';
 import { JWTPayload,jwtVerify } from 'jose';
 
-import { config } from '@/config/config';
+import { AppConfigService } from '@/config/app-config.service';
 import { SessionService } from '@/modules/sessions/services/session.service';
 import { Logger } from '@/shared/logger/logger';
 import { errorMessage } from '@/shared/utils/utils';
@@ -24,6 +24,7 @@ const ID_TOKEN_ALGORITHMS = ['RS256'];
 @Injectable()
 export class AuthService {
   constructor(
+    private readonly config: AppConfigService,
     private readonly oauthState: OAuthStateRepository,
     private readonly keycloak: KeycloakClient,
     private readonly jwks: JwksService,
@@ -69,13 +70,13 @@ export class AuthService {
 
   // Устанавливаем сессионную и CSRF куки в ответ
   async setSessionCookies(res: Response, session: Session): Promise<void> {
-    this.setHttpOnlyCookie(res, config.session.cookieName, session.id);
+    this.setHttpOnlyCookie(res, this.config.session.cookieName, session.id);
     this.setCsrfCookie(res, session.csrfToken);
   }
 
   // Очищаем сессионные куки в ответе
   clearSessionCookies(res: Response): void {
-    this.clearCookie(res, config.session.cookieName);
+    this.clearCookie(res, this.config.session.cookieName);
     this.clearCookie(res, 'XSRF-TOKEN');
   }
 
@@ -114,8 +115,8 @@ export class AuthService {
   private async verifySignature(idToken: string): Promise<JWTPayload> {
     try {
       const { payload } = await jwtVerify(idToken, this.jwks.getJWKS(), {
-        issuer: config.keycloak.publicIssuer,
-        audience: config.keycloak.clientId,
+        issuer: this.config.keycloak.publicIssuer,
+        audience: this.config.keycloak.clientId,
         algorithms: ID_TOKEN_ALGORITHMS,
       });
       return payload;
@@ -129,22 +130,22 @@ export class AuthService {
 
   private buildKeycloakAuthUrl(state: string, codeChallenge: string, nonce: string): string {
     const params = new URLSearchParams({
-      client_id: config.keycloak.clientId,
+      client_id: this.config.keycloak.clientId,
       response_type: 'code',
-      redirect_uri: config.keycloak.redirectUri,
+      redirect_uri: this.config.keycloak.redirectUri,
       scope: 'openid profile email',
       state,
       nonce,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
     });
-    return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
+    return `${this.config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
   }
 
   private buildLogoutUrl(idToken: string): string {
-    const url = new URL(`${config.keycloak.publicIssuer}/protocol/openid-connect/logout`);
+    const url = new URL(`${this.config.keycloak.publicIssuer}/protocol/openid-connect/logout`);
     url.searchParams.append('id_token_hint', idToken);
-    url.searchParams.append('post_logout_redirect_uri', config.keycloak.logoutRedirectUri);
+    url.searchParams.append('post_logout_redirect_uri', this.config.keycloak.logoutRedirectUri);
     return url.toString();
   }
 
@@ -208,9 +209,9 @@ export class AuthService {
   private cookieOptions(httpOnly: boolean) {
     return {
       httpOnly,
-      secure: config.isProduction,
+      secure: this.config.isProduction,
       sameSite: 'strict' as const,
-      maxAge: config.session.ttl * 1000,
+      maxAge: this.config.session.ttl * 1000,
       path: '/',
     };
   }

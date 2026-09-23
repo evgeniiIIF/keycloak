@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { AppConfigService } from '@/config/app-config.service';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { KeycloakJwtPayload, TokenSet } from '@/modules/auth/types/keycloak';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
@@ -13,7 +14,7 @@ describe('SessionService (integration, real Redis)', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      providers: [RedisClient, SessionRepository, UserSessionsRepository, SessionService],
+      providers: [AppConfigService, RedisClient, SessionRepository, UserSessionsRepository, SessionService],
     }).compile();
 
     redis = moduleRef.get(RedisClient);
