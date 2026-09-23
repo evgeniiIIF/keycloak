@@ -62,4 +62,9 @@ export const config = {
       `${process.env.REDIS_TLS === 'true' ? 'rediss' : 'redis'}://${getEnv('REDIS_HOST')}:${getEnv('REDIS_PORT')}`,
     password: process.env.REDIS_PASSWORD || undefined,
   },
+  throttle: {
+    defaultLimit: getEnvInt('THROTTLE_DEFAULT_LIMIT'),
+    strictLimit: getEnvInt('THROTTLE_STRICT_LIMIT'),
+    ttlSeconds: getEnvInt('THROTTLE_TTL_SECONDS'),
+  },
 } as const;

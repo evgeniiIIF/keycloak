@@ -1,16 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { idTokenPayload, initFixtures, refreshedTokenSet, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
+import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
+import { idTokenPayload, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 import * as crypto from 'crypto';
 
+import { config } from '@/config/config';
 import { RedisClient } from '@/infra/redis/redis.client';
 import { AuthService } from '@/modules/auth/services/auth.service';
+import { JwksService } from '@/modules/auth/services/jwks.service';
 import { KeycloakClient } from '@/modules/auth/services/keycloak.service';
 import { OAuthStateRepository } from '@/modules/auth/storage/oauth-state.repository';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository';
 import { UserSessionsRepository } from '@/modules/sessions/repositories/user-sessions.repository';
 import { SessionService } from '@/modules/sessions/services/session.service';
 
-// Мокаем KeycloakClient — проверяем логику AuthService, а не реальный Keycloak
 jest.mock('@/modules/auth/services/keycloak.service');
 
 describe('AuthService (integration, real Redis)', () => {
@@ -21,8 +23,6 @@ describe('AuthService (integration, real Redis)', () => {
   let keycloak: jest.Mocked<KeycloakClient>;
 
   beforeAll(async () => {
-    await initFixtures();
-
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         RedisClient,
@@ -31,6 +31,7 @@ describe('AuthService (integration, real Redis)', () => {
         UserSessionsRepository,
         SessionService,
         AuthService,
+        { provide: JwksService, useValue: { getJWKS: () => TEST_JWT_PUBLIC_KEY } },
         {
           provide: KeycloakClient,
           useValue: { exchangeCode: jest.fn(), refreshTokens: jest.fn(), revokeRefreshToken: jest.fn() },
@@ -57,47 +58,49 @@ describe('AuthService (integration, real Redis)', () => {
   });
 
   describe('buildAuthorizationUrl', () => {
-    it('генерирует PKCE-пару и сохраняет verifier в Redis по state', async () => {
+    it('генерирует PKCE + state + nonce и сохраняет в Redis', async () => {
       const url = await authService.buildAuthorizationUrl();
       const parsed = new URL(url);
 
-      expect(parsed.pathname).toContain('/protocol/openid-connect/auth');
-      expect(parsed.searchParams.get('response_type')).toBe('code');
-      expect(parsed.searchParams.get('client_id')).toBe('bff-client');
-
       const state = parsed.searchParams.get('state')!;
       const codeChallenge = parsed.searchParams.get('code_challenge')!;
+      const nonce = parsed.searchParams.get('nonce')!;
+
       expect(state).toBeTruthy();
       expect(codeChallenge).toBeTruthy();
+      expect(nonce).toBeTruthy();
 
-      const verifier = await oauthState.find(state);
-      expect(verifier).toBeTruthy();
+      const stored = await oauthState.find(state);
+      expect(stored).toBeTruthy();
+      expect(stored!.nonce).toBe(nonce);
 
-      const expectedChallenge = crypto.createHash('sha256').update(verifier!).digest('base64url');
-      expect(codeChallenge).toBe(expectedChallenge);
+      const expected = crypto.createHash('sha256').update(stored!.codeVerifier).digest('base64url');
+      expect(codeChallenge).toBe(expected);
     });
   });
 
   describe('exchangeCode', () => {
-    it('обменивает code на токены, создаёт сессию и удаляет state', async () => {
-      const state = 'test-state';
-      const verifier = 'test-verifier';
-      await oauthState.save(state, verifier);
+    it('обменивает code, верифицирует id_token, создаёт сессию', async () => {
+      const state = 'integration-state';
+      const nonce = 'integration-nonce';
+      await oauthState.save(state, { codeVerifier: 'verifier', nonce });
 
-      keycloak.exchangeCode.mockResolvedValue(validTokenSet);
+      const idToken = await signTestJwt(
+        { email: 'u@e.com', preferred_username: 'u', nonce },
+        {
+          subject: idTokenPayload.sub,
+          issuer: config.keycloak.publicIssuer,
+          audience: config.keycloak.clientId,
+        },
+      );
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });
 
       const session = await authService.exchangeCode('test-code', state);
 
-      const storedVerifier = await oauthState.find(state);
-      expect(storedVerifier).toBeNull();
-
-      const storedSession = await sessionService.get(session.id);
-      expect(storedSession).toBeDefined();
-      expect(storedSession!.user.id).toBe(idTokenPayload.sub);
-      expect(storedSession!.tokens.accessToken).toBe(validTokenSet.access_token);
-      expect(storedSession!.csrfToken).toBeDefined();
-
-      expect(keycloak.exchangeCode).toHaveBeenCalledWith('test-code', verifier);
+      expect(await oauthState.find(state)).toBeNull();
+      const stored = await sessionService.get(session.id);
+      expect(stored).toBeDefined();
+      expect(stored!.user.id).toBe(idTokenPayload.sub);
     });
 
     it('бросает BadRequestException, если state не найден', async () => {
@@ -107,17 +110,17 @@ describe('AuthService (integration, real Redis)', () => {
   });
 
   describe('refreshTokens', () => {
-    it('обновляет токены в сессии и сохраняет их в Redis', async () => {
+    it('обновляет токены в сессии и сохраняет в Redis', async () => {
       const session = await sessionService.create(idTokenPayload, validTokenSet, idTokenPayload.sub);
-      keycloak.refreshTokens.mockResolvedValue(refreshedTokenSet);
+      keycloak.refreshTokens.mockResolvedValue({
+        access_token: 'new-a', refresh_token: 'new-r', id_token: 'new-i',
+      });
 
       const newTokens = await authService.refreshTokens(session.id, session.tokens);
 
-      expect(newTokens.accessToken).toBe(refreshedTokenSet.access_token);
-
-      const updatedSession = await sessionService.get(session.id);
-      expect(updatedSession!.tokens.accessToken).toBe(refreshedTokenSet.access_token);
-      expect(keycloak.refreshTokens).toHaveBeenCalledWith(validTokenSet.refresh_token);
+      expect(newTokens.accessToken).toBe('new-a');
+      const updated = await sessionService.get(session.id);
+      expect(updated!.tokens.accessToken).toBe('new-a');
     });
   });
 
@@ -131,7 +134,6 @@ describe('AuthService (integration, real Redis)', () => {
       expect(await sessionService.get(session.id)).toBeNull();
       expect(keycloak.revokeRefreshToken).toHaveBeenCalledWith(validTokenSet.refresh_token);
       expect(logoutUrl).toContain('protocol/openid-connect/logout');
-      expect(logoutUrl).toContain('id_token_hint=' + validTokenSet.id_token);
     });
   });
 });

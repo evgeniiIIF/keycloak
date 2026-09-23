@@ -1,7 +1,6 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TEST_JWT_AUDIENCE, TEST_JWT_ISSUER, TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
-import { SignJWT } from 'jose';
+import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 
 import { RedisClient } from '@/infra/redis/redis.client';
 import { BackchannelService } from '@/modules/auth/services/backchannel.service';
@@ -23,7 +22,7 @@ describe('BackchannelService (unit)', () => {
     } as unknown as jest.Mocked<SessionService>;
 
     const jwks = {
-      getJWKS: jest.fn().mockReturnValue(TEST_JWT_KEY),
+      getJWKS: jest.fn().mockReturnValue(TEST_JWT_PUBLIC_KEY),
     } as unknown as jest.Mocked<JwksService>;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -96,18 +95,12 @@ interface LogoutTokenClaims { sub?: string; jti?: string; }
 interface SignOptions { includeEvent?: boolean; issuer?: string; }
 
 async function signLogoutToken(claims: LogoutTokenClaims, options: SignOptions = {}): Promise<string> {
-  const { includeEvent = true, issuer = TEST_JWT_ISSUER } = options;
+  const { includeEvent = true, issuer } = options;
 
   const payload: Record<string, unknown> = {};
   if (claims.sub) payload.sub = claims.sub;
   if (claims.jti) payload.jti = claims.jti;
   if (includeEvent) payload.events = { [BACKCHANNEL_EVENT]: {} };
 
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuer(issuer)
-    .setAudience(TEST_JWT_AUDIENCE)
-    .setIssuedAt()
-    .setExpirationTime('5m')
-    .sign(TEST_JWT_KEY);
+  return signTestJwt(payload, { issuer });
 }

@@ -1,75 +1,76 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { Response } from 'express';
-import { decodeJwt } from 'jose';
+import { JWTPayload,jwtVerify } from 'jose';
 
 import { config } from '@/config/config';
 import { SessionService } from '@/modules/sessions/services/session.service';
 import { Logger } from '@/shared/logger/logger';
 import { errorMessage } from '@/shared/utils/utils';
 
-import { OAuthStateRepository } from '../storage/oauth-state.repository';
+import { OAuthState, OAuthStateRepository } from '../storage/oauth-state.repository';
 import { KeycloakJwtPayload } from '../types/keycloak';
 import type { Session, SessionTokens } from '../types/session';
+import { JwksService } from './jwks.service';
 import { KeycloakClient } from './keycloak.service';
 
-// OAuth 2.0 Authorization Code Flow с PKCE.
-// Строит URL авторизации, обменивает код на токены, создаёт/уничтожает сессию,
+// Разрешённый алгоритм подписи id_token. Keycloak в проде подписывает RS256;
+// жёсткая фиксация защищает от alg-confusion атак (HS256 с публичным ключом).
+const ID_TOKEN_ALGORITHMS = ['RS256'];
+
+// OAuth 2.0 Authorization Code Flow с PKCE и OIDC nonce.
+// Строит URL авторизации, верифицирует id_token, создаёт/уничтожает сессию,
 // обновляет токены через refresh_token.
 @Injectable()
 export class AuthService {
   constructor(
     private readonly oauthState: OAuthStateRepository,
     private readonly keycloak: KeycloakClient,
+    private readonly jwks: JwksService,
     private readonly sessionService: SessionService,
   ) {}
 
-  // Строим URL для редиректа на Keycloak.
-  // Генерируем PKCE пару и state, сохраняем verifier в Redis под state.
+  // Строим URL редиректа на Keycloak.
+  // Генерируем PKCE пару, state и nonce, сохраняем verifier+nonce под state.
   async buildAuthorizationUrl(): Promise<string> {
     const { verifier, challenge } = this.generatePkce();      // генерируем PKCE пару
-    const state = this.generateState();                        // генерируем CSRF state
-    await this.oauthState.save(state, verifier);               // сохраняем verifier под state
-    return this.buildKeycloakAuthUrl(state, challenge);        // собираем URL авторизации
+    const state = this.generateRandomHex(16);                 // CSRF state
+    const nonce = this.generateRandomHex(16);                 // OIDC nonce
+    await this.oauthState.save(state, { codeVerifier: verifier, nonce });  // сохраняем в Redis
+    return this.buildKeycloakAuthUrl(state, challenge, nonce); // собираем URL
   }
 
-  // Обмениваем authorization code на токены и создаём сессию
+  // Обмениваем authorization code на токены, верифицируем id_token, создаём сессию
   async exchangeCode(code: string, state: string): Promise<Session> {
-    const codeVerifier = await this.oauthState.find(state);    // достаём verifier по state
-    if (!codeVerifier) {
-      throw new BadRequestException('Invalid or expired OAuth state');
-    }
+    const oauthState = await this.loadOAuthState(state);                              // { verifier, nonce }
+    const tokenSet = await this.keycloak.exchangeCode(code, oauthState.codeVerifier); // обмен кода
+    const idTokenPayload = await this.verifyIdToken(tokenSet.id_token, oauthState.nonce);  // верификация
+    const session = await this.sessionService.create(idTokenPayload, tokenSet, idTokenPayload.sub);
+    await this.oauthState.delete(state);                                              // state — one-time
 
-    const tokenSet = await this.keycloak.exchangeCode(code, codeVerifier);  // обмениваем код на токены
-    const idTokenPayload = this.decodeIdToken(tokenSet.id_token);            // парсим id_token
-    const session = await this.sessionService.create(idTokenPayload, tokenSet, idTokenPayload.sub);  // создаём сессию
-    await this.oauthState.delete(state);                                     // удаляем использованный state
-
-    Logger.info('Auth', 'Login complete', {
-      user: session.user.username || session.user.email,
-    });
+    Logger.info('Auth', 'Login complete', { user: session.user.username || session.user.email });
     return session;
   }
 
   // Завершаем сессию локально и в Keycloak, возвращаем URL выхода
   async logout(session: Session): Promise<string> {
-    await this.destroySessionSafely(session);                  // удаляем сессию, ошибки логируем
-    await this.revokeRefreshTokenSafely(session.tokens.refreshToken);  // отзываем в Keycloak, ошибки логируем
-    return this.buildLogoutUrl(session.tokens.idToken);        // собираем URL выхода
+    await this.destroySessionSafely(session);
+    await this.revokeRefreshTokenSafely(session.tokens.refreshToken);
+    return this.buildLogoutUrl(session.tokens.idToken);
   }
 
   // Обновляем токены сессии через Keycloak и сохраняем в Redis
   async refreshTokens(sessionId: string, currentTokens: SessionTokens): Promise<SessionTokens> {
-    const tokenSet = await this.keycloak.refreshTokens(currentTokens.refreshToken);  // запрашиваем новые токены
-    const newTokens = this.buildRefreshedTokens(tokenSet, currentTokens);            // собираем новые токены
-    await this.sessionService.updateTokens(sessionId, newTokens);                    // сохраняем в сессию
+    const tokenSet = await this.keycloak.refreshTokens(currentTokens.refreshToken);
+    const newTokens = this.buildRefreshedTokens(tokenSet, currentTokens);
+    await this.sessionService.updateTokens(sessionId, newTokens);
     return newTokens;
   }
 
   // Устанавливаем сессионную и CSRF куки в ответ
   async setSessionCookies(res: Response, session: Session): Promise<void> {
-    this.setHttpOnlyCookie(res, config.session.cookieName, session.id);  // httpOnly сессия
-    this.setCsrfCookie(res, session.csrfToken);                           // читаемая CSRF кука
+    this.setHttpOnlyCookie(res, config.session.cookieName, session.id);
+    this.setCsrfCookie(res, session.csrfToken);
   }
 
   // Очищаем сессионные куки в ответе
@@ -88,23 +89,58 @@ export class AuthService {
     return crypto.timingSafeEqual(sessionBuf, tokenBuf);
   }
 
+  // ── Верификация ────────────────────────────────────────────────
+
+  // Достаём OAuth state из Redis или кидаем BadRequestException
+  private async loadOAuthState(state: string): Promise<OAuthState> {
+    const oauthState = await this.oauthState.find(state);
+    if (!oauthState) {
+      throw new BadRequestException('Invalid or expired OAuth state');
+    }
+    return oauthState;
+  }
+
+  // Верифицируем id_token через JWKS Keycloak: подпись, issuer, audience, nonce.
+  // Возвращаем payload или кидаем UnauthorizedException.
+  private async verifyIdToken(idToken: string, expectedNonce: string): Promise<KeycloakJwtPayload> {
+    const payload = await this.verifySignature(idToken);
+    if (payload.nonce !== expectedNonce) {
+      throw new UnauthorizedException('Invalid id_token nonce');
+    }
+    return payload as KeycloakJwtPayload;
+  }
+
+  // Проверяем подпись, issuer, audience. Возвращаем payload или кидаем.
+  private async verifySignature(idToken: string): Promise<JWTPayload> {
+    try {
+      const { payload } = await jwtVerify(idToken, this.jwks.getJWKS(), {
+        issuer: config.keycloak.publicIssuer,
+        audience: config.keycloak.clientId,
+        algorithms: ID_TOKEN_ALGORITHMS,
+      });
+      return payload;
+    } catch (err) {
+      Logger.warn('Auth', `id_token verification failed: ${errorMessage(err)}`);
+      throw new UnauthorizedException('Invalid id_token');
+    }
+  }
+
   // ── Примитивы: URL ─────────────────────────────────────────────
 
-  // Собираем URL авторизации Keycloak со всеми OAuth-параметрами
-  private buildKeycloakAuthUrl(state: string, codeChallenge: string): string {
+  private buildKeycloakAuthUrl(state: string, codeChallenge: string, nonce: string): string {
     const params = new URLSearchParams({
       client_id: config.keycloak.clientId,
       response_type: 'code',
       redirect_uri: config.keycloak.redirectUri,
       scope: 'openid profile email',
       state,
+      nonce,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
     });
     return `${config.keycloak.publicIssuer}/protocol/openid-connect/auth?${params}`;
   }
 
-  // Собираем URL выхода из Keycloak с hint на id_token
   private buildLogoutUrl(idToken: string): string {
     const url = new URL(`${config.keycloak.publicIssuer}/protocol/openid-connect/logout`);
     url.searchParams.append('id_token_hint', idToken);
@@ -114,26 +150,18 @@ export class AuthService {
 
   // ── Примитивы: криптография ────────────────────────────────────
 
-  // Генерируем PKCE пару: verifier + S256 challenge
   private generatePkce(): PkcePair {
     const verifier = crypto.randomBytes(32).toString('hex');
-    const challenge = crypto.createHash('sha256').update(verifier).digest().toString('base64url');
+    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
     return { verifier, challenge };
   }
 
-  // Генерируем случайный state для CSRF-защиты OAuth
-  private generateState(): string {
-    return crypto.randomBytes(16).toString('hex');
+  private generateRandomHex(bytes: number): string {
+    return crypto.randomBytes(bytes).toString('hex');
   }
 
   // ── Примитивы: токены ──────────────────────────────────────────
 
-  // Парсим id_token в типизированный payload
-  private decodeIdToken(idToken: string): KeycloakJwtPayload {
-    return decodeJwt<KeycloakJwtPayload>(idToken);
-  }
-
-  // Собираем обновлённые токены: используем старый refresh, если Keycloak не вернул новый
   private buildRefreshedTokens(
     tokenSet: { access_token: string; refresh_token?: string; id_token: string },
     currentTokens: SessionTokens,
@@ -147,7 +175,6 @@ export class AuthService {
 
   // ── Примитивы: безопасные операции ─────────────────────────────
 
-  // Удаляем сессию, не пробрасывая ошибки наружу
   private async destroySessionSafely(session: Session): Promise<void> {
     try {
       await this.sessionService.destroy(session.id, session.user.id);
@@ -156,7 +183,6 @@ export class AuthService {
     }
   }
 
-  // Отзываем refresh_token в Keycloak, не пробрасывая ошибки наружу
   private async revokeRefreshTokenSafely(refreshToken: string): Promise<void> {
     try {
       await this.keycloak.revokeRefreshToken(refreshToken);
@@ -167,22 +193,18 @@ export class AuthService {
 
   // ── Примитивы: cookies ─────────────────────────────────────────
 
-  // Ставим httpOnly куку с сессией
   private setHttpOnlyCookie(res: Response, name: string, value: string): void {
     res.cookie(name, value, this.cookieOptions(true));
   }
 
-  // Ставим читаемую из JS CSRF куку (double-submit pattern)
   private setCsrfCookie(res: Response, csrfToken: string): void {
     res.cookie('XSRF-TOKEN', csrfToken, this.cookieOptions(false));
   }
 
-  // Удаляем куку по имени с теми же опциями безопасности
   private clearCookie(res: Response, name: string): void {
     res.clearCookie(name, this.cookieOptions(true));
   }
 
-  // Общие опции cookie для сессии и CSRF
   private cookieOptions(httpOnly: boolean) {
     return {
       httpOnly,
@@ -194,7 +216,6 @@ export class AuthService {
   }
 }
 
-// PKCE пара: verifier (секрет) + challenge (публичный)
 export interface PkcePair {
   verifier: string;
   challenge: string;

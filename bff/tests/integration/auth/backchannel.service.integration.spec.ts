@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
-import { SignJWT } from 'jose';
+import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 
 import { config } from '@/config/config';
 import { RedisClient } from '@/infra/redis/redis.client';
@@ -25,7 +24,7 @@ describe('BackchannelService (integration, real Redis)', () => {
         UserSessionsRepository,
         SessionService,
         BackchannelService,
-        { provide: JwksService, useValue: { getJWKS: () => TEST_JWT_KEY } },
+        { provide: JwksService, useValue: { getJWKS: () => TEST_JWT_PUBLIC_KEY } },
       ],
     }).compile();
 
@@ -79,18 +78,14 @@ describe('BackchannelService (integration, real Redis)', () => {
   });
 });
 
-// Подписываем logout token тем же issuer/audience, который проверяет BackchannelService.
-// В integration issuer приходит от testcontainers (localhost:<mapped>), а не из .env.
+// В integration issuer приходит от testcontainers, а не из .env — берём из config.
 async function signLogoutToken(claims: { sub?: string; jti?: string }): Promise<string> {
   const payload: Record<string, unknown> = { events: { [BACKCHANNEL_EVENT]: {} } };
   if (claims.sub) payload.sub = claims.sub;
   if (claims.jti) payload.jti = claims.jti;
 
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuer(config.keycloak.publicIssuer)
-    .setAudience(config.keycloak.clientId)
-    .setIssuedAt()
-    .setExpirationTime('5m')
-    .sign(TEST_JWT_KEY);
+  return signTestJwt(payload, {
+    issuer: config.keycloak.publicIssuer,
+    audience: config.keycloak.clientId,
+  });
 }

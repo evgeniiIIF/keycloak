@@ -1,6 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { RedisClient } from '@/infra/redis/redis.client';
 import { Public } from '@/modules/auth/decorators/auth.decorator';
@@ -9,6 +10,7 @@ import { Public } from '@/modules/auth/decorators/auth.decorator';
 // Публичные — используются оркестратором (k8s, docker healthcheck) без аутентификации.
 @ApiTags('health')
 @Public()
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(

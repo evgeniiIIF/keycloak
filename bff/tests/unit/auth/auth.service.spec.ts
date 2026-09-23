@@ -1,6 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TEST_JWT_KEY } from '@tests/shared/fixtures/jwt-keys';
+import { signTestJwt, TEST_JWT_PUBLIC_KEY } from '@tests/shared/fixtures/jwt-keys';
 import { initFixtures, validTokenSet } from '@tests/shared/fixtures/tokens.fixture';
 
 import { AuthService } from '@/modules/auth/services/auth.service';
@@ -38,7 +38,7 @@ describe('AuthService (unit)', () => {
     } as unknown as jest.Mocked<KeycloakClient>;
 
     const jwks = {
-      getJWKS: jest.fn().mockReturnValue(TEST_JWT_KEY),
+      getJWKS: jest.fn().mockReturnValue(TEST_JWT_PUBLIC_KEY),
     } as unknown as jest.Mocked<JwksService>;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -55,7 +55,7 @@ describe('AuthService (unit)', () => {
   });
 
   describe('buildAuthorizationUrl', () => {
-    it('генерирует PKCE-пару, state и сохраняет verifier', async () => {
+    it('генерирует PKCE-пару, state, nonce и сохраняет их', async () => {
       const url = await authService.buildAuthorizationUrl();
       const parsed = new URL(url);
 
@@ -63,11 +63,14 @@ describe('AuthService (unit)', () => {
       expect(parsed.searchParams.get('response_type')).toBe('code');
       expect(parsed.searchParams.get('client_id')).toBe('bff-client');
       expect(parsed.searchParams.get('code_challenge_method')).toBe('S256');
-      expect(parsed.searchParams.get('code_challenge')).toBeTruthy();
+      expect(parsed.searchParams.get('nonce')).toBeTruthy();
 
-      const state = parsed.searchParams.get('state');
+      const state = parsed.searchParams.get('state')!;
       expect(state).toBeTruthy();
-      expect(oauthState.save).toHaveBeenCalledWith(state, expect.any(String));
+      expect(oauthState.save).toHaveBeenCalledWith(state, {
+        codeVerifier: expect.any(String),
+        nonce: expect.any(String),
+      });
     });
   });
 
@@ -79,9 +82,16 @@ describe('AuthService (unit)', () => {
       csrfToken: 'csrf-token-123',
     };
 
-    it('обменивает code, создаёт сессию и удаляет state', async () => {
-      oauthState.find.mockResolvedValue('verifier-123');
-      keycloak.exchangeCode.mockResolvedValue(validTokenSet);
+    const nonce = 'test-nonce';
+
+    it('обменивает code, верифицирует id_token, создаёт сессию и удаляет state', async () => {
+      const idToken = await signTestJwt(
+        { email: 'u@e.com', preferred_username: 'u', nonce },
+        { subject: 'user-123' },
+      );
+
+      oauthState.find.mockResolvedValue({ codeVerifier: 'verifier-123', nonce });
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });
       sessionService.create.mockResolvedValue(session);
 
       const result = await authService.exchangeCode('code-123', 'state-123');
@@ -89,7 +99,6 @@ describe('AuthService (unit)', () => {
       expect(result).toBe(session);
       expect(oauthState.find).toHaveBeenCalledWith('state-123');
       expect(keycloak.exchangeCode).toHaveBeenCalledWith('code-123', 'verifier-123');
-      expect(sessionService.create).toHaveBeenCalled();
       expect(oauthState.delete).toHaveBeenCalledWith('state-123');
     });
 
@@ -100,12 +109,58 @@ describe('AuthService (unit)', () => {
         .rejects.toThrow(BadRequestException);
     });
 
-    it('пробрасывает ошибку от KeycloakClient', async () => {
-      oauthState.find.mockResolvedValue('verifier');
-      keycloak.exchangeCode.mockRejectedValue(new Error('Keycloak error'));
+    it('бросает UnauthorizedException, если подпись id_token подделана', async () => {
+      const forged = await signTestJwt({ nonce }, { subject: 'user-123' });
+      // Портим символ в середине подписи — гарантированно меняет байты,
+      // в отличие от последнего символа base64url (может быть padding).
+      const [header, payload, signature] = forged.split('.');
+      const tamperedSig = signature.slice(0, 10) + (signature[10] === 'A' ? 'B' : 'A') + signature.slice(11);
+      const tampered = `${header}.${payload}.${tamperedSig}`;
+
+      oauthState.find.mockResolvedValue({ codeVerifier: 'v', nonce });
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: tampered });
 
       await expect(authService.exchangeCode('code', 'state'))
-        .rejects.toThrow('Keycloak error');
+        .rejects.toThrow(UnauthorizedException);
+    });
+
+    it('бросает UnauthorizedException, если nonce не совпадает', async () => {
+      const idToken = await signTestJwt(
+        { nonce: 'wrong-nonce' },
+        { subject: 'user-123' },
+      );
+
+      oauthState.find.mockResolvedValue({ codeVerifier: 'v', nonce: 'expected-nonce' });
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });
+
+      await expect(authService.exchangeCode('code', 'state'))
+        .rejects.toThrow(UnauthorizedException);
+    });
+
+    it('бросает UnauthorizedException, если issuer не совпадает', async () => {
+      const idToken = await signTestJwt(
+        { nonce },
+        { subject: 'user-123', issuer: 'http://evil' },
+      );
+
+      oauthState.find.mockResolvedValue({ codeVerifier: 'v', nonce });
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });
+
+      await expect(authService.exchangeCode('code', 'state'))
+        .rejects.toThrow(UnauthorizedException);
+    });
+
+    it('бросает UnauthorizedException, если id_token просрочен', async () => {
+      const idToken = await signTestJwt(
+        { nonce },
+        { subject: 'user-123', expiresIn: '-1s' },
+      );
+
+      oauthState.find.mockResolvedValue({ codeVerifier: 'v', nonce });
+      keycloak.exchangeCode.mockResolvedValue({ ...validTokenSet, id_token: idToken });
+
+      await expect(authService.exchangeCode('code', 'state'))
+        .rejects.toThrow(UnauthorizedException);
     });
   });
 

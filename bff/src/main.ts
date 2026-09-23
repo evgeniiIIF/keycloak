@@ -1,6 +1,6 @@
-import { ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder,SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
@@ -11,9 +11,52 @@ import { Logger } from '@/shared/logger/logger';
 
 import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+// Точка входа BFF: собирает NestJS-приложение, настраивает middleware,
+// поднимает HTTP-сервер. Все шаги явно перечислены в bootstrap.
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create(AppModule);          // создаём приложение
+  configureApp(app);                                        // middleware, pipes, filters, cors
+  if (!config.isProduction) setupSwagger(app);              // swagger только вне прода
+  await startServer(app);                                   // слушаем порт
+}
 
+// Настраиваем глобальные middleware, pipes, filters и CORS.
+// Порядок важен: helmet → cookie-parser → body-parser → filters → cors.
+function configureApp(app: INestApplication): void {
+  configureTrustProxy(app);                                 // trust proxy для X-Forwarded-*
+  app.use(helmet());                                        // security headers
+  app.use(cookieParser());                                  // cookies → req.cookies
+  app.use(express.json());                                  // body parser json
+  app.use(express.urlencoded({ extended: true }));          // body parser urlencoded
+  configureValidation(app);                                 // глобальные pipe-ы
+  configureCors(app);                                       // CORS
+  app.useGlobalFilters(new HttpExceptionFilter());          // единый формат ошибок
+  app.enableShutdownHooks();                                // корректное завершение
+}
+
+// Доверяем первому прокси — чтобы req.ip и secure-cookies работали за nginx/ingress
+function configureTrustProxy(app: INestApplication): void {
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+}
+
+// Глобальная валидация DTO: whitelist отрезает лишние поля, forbid — запрещает их вовсе
+function configureValidation(app: INestApplication): void {
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+  );
+}
+
+// CORS с credentials — куки уходят на фронт, origin строго из конфига
+function configureCors(app: INestApplication): void {
+  app.enableCors({
+    origin: config.corsOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+}
+
+// Swagger UI доступен только вне production, чтобы не отдавать схему API публично.
+function setupSwagger(app: INestApplication): void {
   const configBuilder = new DocumentBuilder()
     .setTitle('Keycloak BFF API')
     .setDescription('API документация для BFF сервиса')
@@ -23,26 +66,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, configBuilder.build());
   SwaggerModule.setup('api/docs', app, document);
   Logger.info('App', `Swagger UI on http://localhost:${config.port}/api/docs`);
-  
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-  );
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
-  app.use(helmet());
-  app.use(cookieParser());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-  app.useGlobalFilters(new HttpExceptionFilter());
+}
 
-  app.enableCors({
-    origin: config.corsOrigins,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-  });
-
-  app.enableShutdownHooks();
+// Запускаем HTTP-сервер и логируем адрес
+async function startServer(app: INestApplication): Promise<void> {
   await app.listen(config.port);
   Logger.info('App', `Running on http://localhost:${config.port}`);
 }
 
-bootstrap();
+void bootstrap();
